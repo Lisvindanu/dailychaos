@@ -8,6 +8,7 @@ import androidx.compose.ui.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
+import kotlin.math.abs // Import the 'abs' function
 
 /**
  * User Avatar Component
@@ -26,7 +27,8 @@ fun UserAvatar(
             Color(0xFFE57373), Color(0xFF81C784), Color(0xFF64B5F6),
             Color(0xFFFFB74D), Color(0xFFBA68C8), Color(0xFF4FC3F7)
         )
-        colors[username.hashCode().rem(colors.size)]
+        // FIX: Use the absolute value of the hash code to prevent a negative index.
+        colors[abs(username.hashCode()) % colors.size]
     }
 
     Surface(
