@@ -75,7 +75,8 @@ fun MainNavigationScreen(
 
             composable("community") {
                 CommunityFeedScreen(
-                    onNavigateToPost = { id -> navController.navigate("community_post/$id") },
+                    // FIX: Navigate to the correct detail route
+                    onNavigateToPost = { id -> navController.navigate("chaos_detail/$id") },
                     onNavigateToTwins = { navController.navigate("chaos_twins") }
                 )
             }
@@ -108,7 +109,8 @@ fun MainNavigationScreen(
             composable("chaos_twins") {
                 ChaosTwinsScreen(
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToPost = { id -> navController.navigate("community_post/$id") }
+                    // FIX: Navigate to the correct detail route
+                    onNavigateToPost = { id -> navController.navigate("chaos_detail/$id") }
                 )
             }
 
