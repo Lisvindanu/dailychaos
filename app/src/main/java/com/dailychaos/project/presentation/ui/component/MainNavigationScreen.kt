@@ -10,11 +10,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.dailychaos.project.presentation.ui.screen.home.HomeScreen
 
 /**
- * Main Navigation Screen Component
+ * Main Navigation Screen Component - Updated
  *
- * "Screen utama yang mengatur navigation dan bottom bar"
+ * "Screen utama yang mengatur navigation dan bottom bar dengan HomeScreen yang proper"
  */
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,14 +70,20 @@ fun MainNavigationScreen(
             startDestination = "home",
             modifier = Modifier.padding(paddingValues)
         ) {
-            // Home Screen
+            // Home Screen - Updated with proper implementation
             composable("home") {
-                HomeScreenContent(
+                HomeScreen(
                     onNavigateToCreateChaos = {
                         navController.navigate("create_chaos")
                     },
                     onNavigateToHistory = {
                         navController.navigate("chaos_history")
+                    },
+                    onNavigateToCommunity = {
+                        navController.navigate("community")
+                    },
+                    onNavigateToEntry = { entryId ->
+                        navController.navigate("chaos_detail/$entryId")
                     }
                 )
             }
@@ -203,30 +210,6 @@ fun MainNavigationScreen(
 }
 
 // Placeholder content components - akan diganti dengan actual screens nanti
-@Composable
-private fun HomeScreenContent(
-    onNavigateToCreateChaos: () -> Unit,
-    onNavigateToHistory: () -> Unit
-) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "🏠 Home Screen",
-                style = MaterialTheme.typography.headlineMedium
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onNavigateToCreateChaos) {
-                Text("Create New Chaos Entry")
-            }
-        }
-    }
-}
-
 @Composable
 private fun JournalScreenContent(
     onNavigateToCreateChaos: () -> Unit,
