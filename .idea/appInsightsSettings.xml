@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.dailychaos.project" />
+                  <option name="mobileSdkAppId" value="1:793703129008:android:01182404b33cd0c3ac0075" />
+                  <option name="projectId" value="daily-chaos-dev" />
+                  <option name="projectNumber" value="793703129008" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />
