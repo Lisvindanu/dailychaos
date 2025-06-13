@@ -1,32 +1,17 @@
 package com.dailychaos.project.presentation.ui.screen.auth.onboarding
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.tooling.preview.Preview
+
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.dailychaos.project.presentation.theme.DailyChaosTheme
@@ -41,6 +26,15 @@ fun OnboardingScreen(
 ) {
     val pagerState = rememberPagerState(pageCount = { viewModel.pages.size })
     val scope = rememberCoroutineScope()
+
+    // Track current page untuk fix button visibility
+    val currentPage by remember { derivedStateOf { pagerState.currentPage } }
+    val isLastPage = currentPage == viewModel.pages.size - 1
+
+    // Update ViewModel state when page changes
+    LaunchedEffect(currentPage) {
+        viewModel.onPageChanged(currentPage)
+    }
 
     Scaffold { paddingValues ->
         Column(
@@ -60,55 +54,93 @@ fun OnboardingScreen(
                 )
             }
 
-            // Controls
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Controls Section - ALWAYS VISIBLE
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 4.dp
             ) {
-                // Pager Indicator
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    repeat(viewModel.pages.size) { iteration ->
-                        val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else Color.LightGray
-                        Box(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .size(12.dp)
-                        )
-                    }
-                }
+                Column(
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    // Page Indicators
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        repeat(viewModel.pages.size) { iteration ->
+                            val color = if (currentPage == iteration) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.outline
+                            }
 
-                // Buttons
-                if (pagerState.currentPage == viewModel.pages.size - 1) {
-                    Button(onClick = {
-                        viewModel.completeOnboarding()
-                        onOnboardingComplete()
-                    }) {
-                        Text("Get Started")
-                    }
-                } else {
-                    TextButton(onClick = {
-                        scope.launch {
-                            pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 4.dp)
+                                    .clip(CircleShape)
+                                    .size(if (currentPage == iteration) 12.dp else 8.dp)
+                                    .background(color)
+                            )
                         }
-                    }) {
-                        Text("Next")
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Action Buttons Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Skip Button (only show if not last page)
+                        if (!isLastPage) {
+                            TextButton(
+                                onClick = {
+                                    viewModel.completeOnboarding()
+                                    onOnboardingComplete()
+                                }
+                            ) {
+                                Text("Skip")
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.width(72.dp)) // Placeholder untuk balance
+                        }
+
+                        // Next/Get Started Button - ALWAYS VISIBLE
+                        if (isLastPage) {
+                            Button(
+                                onClick = {
+                                    viewModel.completeOnboarding()
+                                    onOnboardingComplete()
+                                },
+                                modifier = Modifier.fillMaxWidth(0.6f)
+                            ) {
+                                Text("Get Started! 🌪️")
+                            }
+                        } else {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        pagerState.animateScrollToPage(currentPage + 1)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(0.6f)
+                            ) {
+                                Text("Next")
+                            }
+                        }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
-@Preview
+// Extension function untuk background yang tidak ada di Compose
 @Composable
-fun OnboardingScreenPreview() {
-    DailyChaosTheme {
-        Surface {
-            OnboardingScreen(onOnboardingComplete = {})
-        }
-    }
+private fun Modifier.background(color: androidx.compose.ui.graphics.Color): Modifier {
+    return this.then(
+        Modifier.background(color)
+    )
 }

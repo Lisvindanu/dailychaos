@@ -131,7 +131,7 @@ Project ini membawa memori seseorang yang merasa sendirian dalam perjuangannya. 
 
 Project ini dilisensikan di bawah MIT License - lihat file [LICENSE](LICENSE) untuk detail.
 
-## 💙 Untuk yang Tersayang
+## 💙 Untuk yang Terhormat
 
 *"Untuk teman yang meminta kami tidak membiarkan orang lain merasa sesendirian dirinya - warisan-mu hidup melalui setiap momen dukungan yang dibagikan di Daily Chaos."*
 
