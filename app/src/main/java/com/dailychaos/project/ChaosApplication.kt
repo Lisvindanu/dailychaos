@@ -15,12 +15,23 @@ class ChaosApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // Initialize any global configurations here
-        // Firebase akan auto-initialize dengan google-services.json
+        // Initialize app untuk local development
+        initializeApp()
+    }
 
-        // Log untuk debugging (hanya di debug mode)
+    private fun initializeApp() {
+        // Log aplikasi start (hanya di debug mode)
         if (BuildConfig.DEBUG) {
             android.util.Log.d("DailyChaos", "🌪️ Daily Chaos Application Started - Ready to embrace the chaos!")
+            android.util.Log.d("DailyChaos", "📱 Version: ${BuildConfig.VERSION_NAME}")
+            android.util.Log.d("DailyChaos", "🔧 Debug Mode: ${BuildConfig.DEBUG}")
         }
+
+        // TODO: Initialize Firebase ketika siap production
+        // TODO: Initialize database migrations
+        // TODO: Setup notification channels
+        // TODO: Initialize crash reporting
+
+        println("✅ Daily Chaos initialized successfully!")
     }
 }

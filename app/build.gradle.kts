@@ -62,7 +62,7 @@ android {
     buildTypes {
         debug {
             isDebuggable = true
-            applicationIdSuffix = ".debug"
+            // applicationIdSuffix = ".debug"  // COMMENT OUT INI
             versionNameSuffix = "-debug"
 
             val localProperties = Properties()
