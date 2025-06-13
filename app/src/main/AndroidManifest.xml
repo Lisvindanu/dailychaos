@@ -2,15 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Network permissions untuk Firebase -->
+    <!-- Network permissions untuk future Firebase integration -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Notification permissions (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- Wake lock untuk background sync -->
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:name=".ChaosApplication"
@@ -21,31 +18,45 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Project"
+        android:theme="@style/Theme.DailyChaos"
         tools:targetApi="31">
 
         <!-- Main Activity -->
         <activity
             android:name=".presentation.MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.Project"
+            android:theme="@style/Theme.DailyChaos"
             android:windowSoftInputMode="adjustResize">
+
+            <!-- Main launcher intent -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep links -->
+            <!-- Deep links untuk future use - Fixed with proper scheme -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Custom scheme untuk internal deep links -->
+                <data android:scheme="dailychaos" />
+            </intent-filter>
+
+            <!-- Web App Links untuk future use (commented out for now) -->
+            <!--
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="dailychaos" />
+                <data android:scheme="https"
+                      android:host="dailychaos.app" />
             </intent-filter>
+            -->
         </activity>
 
-        <!-- Firebase Messaging Service (untuk push notifications) -->
+        <!-- Firebase Messaging Service - commented out untuk local dev -->
+        <!--
         <service
             android:name=".service.ChaosMessagingService"
             android:exported="false">
@@ -53,18 +64,7 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
-
-        <!-- Work Manager untuk background sync -->
-        <provider
-            android:name="androidx.startup.InitializationProvider"
-            android:authorities="${applicationId}.androidx-startup"
-            android:exported="false"
-            tools:node="merge">
-            <meta-data
-                android:name="androidx.work.WorkManagerInitializer"
-                android:value="androidx.startup"
-                tools:node="remove" />
-        </provider>
+        -->
 
     </application>
 

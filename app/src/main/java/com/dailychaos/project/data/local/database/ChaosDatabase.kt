@@ -1,7 +1,9 @@
 package com.dailychaos.project.data.local.database
 
-class ChaosDatabase {
-    fun communityPostDao(): CommunityPostDao {
+import com.dailychaos.project.data.local.dao.CommunityPostDao
 
-    }
+class ChaosDatabase {
+//    fun communityPostDao(): CommunityPostDao {
+//
+//    }
 }

@@ -62,7 +62,7 @@ android {
     buildTypes {
         debug {
             isDebuggable = true
-            applicationIdSuffix = ".debug"
+            // applicationIdSuffix = ".debug"  // COMMENT OUT INI
             versionNameSuffix = "-debug"
 
             val localProperties = Properties()
@@ -246,4 +246,7 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
     debugImplementation(libs.chucker)
     implementation(kotlin("test"))
+
+    implementation("androidx.compose.animation:animation:1.8.2")
+    implementation("androidx.compose.material:material:1.8.2") // Untuk PullToRefresh
 }
