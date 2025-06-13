@@ -8,10 +8,9 @@ plugins {
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
-    // TODO: Uncomment after Firebase setup
-    // alias(libs.plugins.google.services) // Firebase
-    // alias(libs.plugins.firebase.crashlytics) // Crashlytics
-    // alias(libs.plugins.firebase.perf) // Performance monitoring
+    alias(libs.plugins.google.services) // Firebase
+    alias(libs.plugins.firebase.crashlytics) // Crashlytics
+    alias(libs.plugins.firebase.perf) // Performance monitoring
 }
 
 android {
@@ -175,18 +174,17 @@ dependencies {
     // Pull to refresh & Material
     implementation("androidx.compose.material:material")
 
-    // TODO: Uncomment after Firebase setup and google-services.json added
     // Firebase
-    // implementation(platform(libs.firebase.bom))
-    // implementation(libs.firebase.auth.ktx)
-    // implementation(libs.firebase.firestore.ktx)
-    // implementation(libs.firebase.functions.ktx)
-    // implementation(libs.firebase.messaging.ktx)
-    // implementation(libs.firebase.storage.ktx)
-    // implementation(libs.firebase.analytics.ktx)
-    // implementation(libs.firebase.crashlytics.ktx)
-    // implementation(libs.firebase.perf.ktx)
-    // implementation(libs.firebase.config.ktx)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth.ktx)
+    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.functions.ktx)
+    implementation(libs.firebase.messaging.ktx)
+    implementation(libs.firebase.storage.ktx)
+    implementation(libs.firebase.analytics.ktx)
+    implementation(libs.firebase.crashlytics.ktx)
+    implementation(libs.firebase.perf.ktx)
+    implementation(libs.firebase.config.ktx)
 
     // Hilt - Dependency Injection
     implementation(libs.hilt.android)
