@@ -4,40 +4,29 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.*
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dailychaos.project.domain.model.ChaosEntry
-import com.dailychaos.project.domain.model.ChaosLevel
-import com.dailychaos.project.domain.model.SyncStatus
-import com.dailychaos.project.presentation.theme.DailyChaosTheme
 import com.dailychaos.project.presentation.ui.component.*
-import com.dailychaos.project.util.KonoSubaQuotes
-import kotlinx.datetime.Clock
-import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
-import androidx.compose.material3.pulltorefresh.PullToRefreshState
-
-// Also add these missing domain model imports:
-import com.dailychaos.project.domain.model.User
 
 /**
- * Home Screen - Main dashboard with proper MVVM
+ * Home Screen - Pure Mobile Design dengan fokus pada content utama
  *
- * "Dashboard utama seperti guild hall dimana adventurer berkumpul!"
+ * "Dashboard mobile yang clean dan focused pada chaos entries!"
  */
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun HomeScreen(
     onNavigateToCreateChaos: () -> Unit = {},
@@ -49,11 +38,6 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // Handle UI events
-    LaunchedEffect(Unit) {
-        // Screen initialized, data loading handled by ViewModel
-    }
-
     // Error handling
     uiState.errorMessage?.let { errorMessage ->
         LaunchedEffect(errorMessage) {
@@ -62,20 +46,16 @@ fun HomeScreen(
     }
 
     // Pull to refresh
-    val pullToRefreshState = rememberPullToRefreshState()
-    if (pullToRefreshState.isRefreshing) {
-        LaunchedEffect(true) {
-            viewModel.onEvent(HomeUiEvent.Refresh)
-        }
-    }
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = uiState.isRefreshing,
+        onRefresh = { viewModel.onEvent(HomeUiEvent.Refresh) }
+    )
 
-    LaunchedEffect(uiState.isRefreshing) {
-        if (!uiState.isRefreshing) {
-            pullToRefreshState.endRefresh()
-        }
-    }
-
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .pullRefresh(pullRefreshState)
+    ) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -84,16 +64,11 @@ fun HomeScreen(
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
             item {
-                // Welcome Header
-                WelcomeHeader(user = uiState.user)
-            }
-
-            item {
-                // Today's Quick Stats
-                TodayQuickStatsWithData(
-                    stats = uiState.todayStats,
-                    isLoading = uiState.isStatsLoading,
-                    onRetry = { viewModel.onEvent(HomeUiEvent.RetryLoadingStats) }
+                // Welcome Header dengan stats terintegrasi
+                WelcomeHeaderWithStats(
+                    user = uiState.user,
+                    todayStats = uiState.todayStats,
+                    isStatsLoading = uiState.isStatsLoading
                 )
             }
 
@@ -108,26 +83,17 @@ fun HomeScreen(
             }
 
             item {
-                // Quick Actions
-                QuickActionsSection(
-                    onCreateChaos = {
-                        viewModel.onEvent(HomeUiEvent.NavigateToCreateChaos)
-                        onNavigateToCreateChaos()
-                    },
-                    onViewHistory = {
-                        viewModel.onEvent(HomeUiEvent.NavigateToHistory)
-                        onNavigateToHistory()
-                    },
-                    onVisitCommunity = {
-                        viewModel.onEvent(HomeUiEvent.NavigateToCommunity)
-                        onNavigateToCommunity()
-                    }
+                // Achievement/Streak Section - dipindah ke atas untuk visibility
+                AchievementSection(
+                    achievements = uiState.achievements,
+                    currentStreak = uiState.currentStreak,
+                    isLoading = uiState.isAchievementsLoading
                 )
             }
 
             item {
-                // Recent Chaos Entries
-                RecentChaosSectionWithData(
+                // Recent Chaos Entries - main content
+                RecentChaosSection(
                     recentEntries = uiState.recentEntries,
                     isLoading = uiState.isEntriesLoading,
                     error = uiState.entriesError,
@@ -147,19 +113,10 @@ fun HomeScreen(
                 )
             }
 
-            item {
-                // Achievement/Streak Section
-                AchievementSectionWithData(
-                    achievements = uiState.achievements,
-                    currentStreak = uiState.currentStreak,
-                    isLoading = uiState.isAchievementsLoading
-                )
-            }
-
             // Community highlights (only show if available)
             uiState.communityHighlight?.let { highlight ->
                 item {
-                    CommunityHighlightsSectionWithData(
+                    CommunityHighlightsSection(
                         highlight = highlight,
                         isLoading = uiState.isCommunityLoading,
                         onViewCommunity = {
@@ -172,49 +129,36 @@ fun HomeScreen(
         }
 
         // Pull to refresh indicator
-        PullToRefreshContainer(
-            modifier = Modifier.align(Alignment.TopCenter),
-            state = pullToRefreshState,
+        PullRefreshIndicator(
+            refreshing = uiState.isRefreshing,
+            state = pullRefreshState,
+            modifier = Modifier.align(Alignment.TopCenter)
         )
 
         // Error handling UI
         if (uiState.hasError && !uiState.isLoading) {
-            Card(
+            ErrorMessage(
+                message = uiState.errorMessage ?: "Something went wrong",
+                onRetryClick = { viewModel.onEvent(HomeUiEvent.ClearError) },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = uiState.errorMessage ?: "Something went wrong",
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        onClick = { viewModel.onEvent(HomeUiEvent.ClearError) }
-                    ) {
-                        Text("Dismiss")
-                    }
-                }
-            }
+                    .padding(16.dp)
+            )
         }
     }
 }
 
 @Composable
-private fun WelcomeHeader(user: User?) {
+private fun WelcomeHeaderWithStats(
+    user: com.dailychaos.project.domain.model.User?,
+    todayStats: TodayStats,
+    isStatsLoading: Boolean
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
-        ),
-        shape = RoundedCornerShape(16.dp)
+        )
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -238,89 +182,41 @@ private fun WelcomeHeader(user: User?) {
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 textAlign = TextAlign.Center
             )
-        }
-    }
-}
 
-@Composable
-private fun TodayQuickStatsWithData(
-    stats: TodayStats,
-    isLoading: Boolean,
-    onRetry: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "📊 Today's Overview",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+            // Today's quick stats integrated in header
+            if (!isStatsLoading && (todayStats.entriesCount > 0 || todayStats.miniWinsCount > 0)) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Divider(
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.3f),
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
-                    )
-                }
-            }
+                Spacer(modifier = Modifier.height(12.dp))
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (isLoading) {
-                // Loading skeleton
-                repeat(4) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        repeat(4) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            }
-                        }
-                    }
-                }
-            } else {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatsItem(
-                        emoji = "📝",
-                        value = stats.entriesCount.toString(),
-                        label = "Entries"
-                    )
-                    StatsItem(
-                        emoji = "🏆",
-                        value = stats.miniWinsCount.toString(),
-                        label = "Mini Wins"
-                    )
-                    StatsItem(
-                        emoji = "💙",
-                        value = stats.supportGivenCount.toString(),
-                        label = "Support Given"
-                    )
-                    StatsItem(
-                        emoji = "🎯",
-                        value = "${stats.completionPercentage}%",
-                        label = "Goals"
-                    )
+                    if (todayStats.entriesCount > 0) {
+                        QuickStatItem(
+                            emoji = "📝",
+                            value = todayStats.entriesCount.toString(),
+                            label = "Entries Today"
+                        )
+                    }
+                    if (todayStats.miniWinsCount > 0) {
+                        QuickStatItem(
+                            emoji = "🏆",
+                            value = todayStats.miniWinsCount.toString(),
+                            label = "Mini Wins"
+                        )
+                    }
+                    if (todayStats.supportGivenCount > 0) {
+                        QuickStatItem(
+                            emoji = "💙",
+                            value = todayStats.supportGivenCount.toString(),
+                            label = "Support Given"
+                        )
+                    }
                 }
             }
         }
@@ -328,8 +224,35 @@ private fun TodayQuickStatsWithData(
 }
 
 @Composable
-private fun RecentChaosSectionWithData(
-    recentEntries: List<ChaosEntry>,
+private fun QuickStatItem(
+    emoji: String,
+    value: String,
+    label: String
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = emoji,
+            fontSize = 20.sp
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+        )
+    }
+}
+
+@Composable
+private fun RecentChaosSection(
+    recentEntries: List<com.dailychaos.project.domain.model.ChaosEntry>,
     isLoading: Boolean,
     error: String?,
     onEntryClick: (String) -> Unit,
@@ -357,48 +280,31 @@ private fun RecentChaosSectionWithData(
 
         when {
             isLoading -> {
-                // Loading state
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) {
-                    items(3) {
-                        Card(
-                            modifier = Modifier.width(200.dp).height(120.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator()
-                            }
-                        }
-                    }
-                }
+                LoadingIndicator(
+                    message = "Loading recent chaos entries..."
+                )
             }
             error != null -> {
-                // Error state
                 ErrorMessage(
                     message = error,
                     onRetryClick = onRetry
                 )
             }
             recentEntries.isNotEmpty() -> {
-                // Data state
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(horizontal = 4.dp)
                 ) {
                     items(recentEntries.take(5)) { entry ->
-                        CompactChaosCard(
-                            entry = entry,
-                            onClick = { onEntryClick(entry.id) }
+                        ChaosEntryCard(
+                            chaosEntry = entry,
+                            onCardClick = { onEntryClick(entry.id) },
+                            modifier = Modifier.width(280.dp)
                         )
                     }
                 }
             }
             else -> {
-                // Empty state
                 EmptyState(
                     illustration = "📝",
                     title = "No chaos yet",
@@ -412,7 +318,7 @@ private fun RecentChaosSectionWithData(
 }
 
 @Composable
-private fun AchievementSectionWithData(
+private fun AchievementSection(
     achievements: List<Achievement>,
     currentStreak: Int,
     isLoading: Boolean
@@ -448,11 +354,7 @@ private fun AchievementSectionWithData(
             Spacer(modifier = Modifier.height(8.dp))
 
             if (isLoading) {
-                Text(
-                    text = "Loading achievements...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                )
+                LoadingIndicator(message = "Loading achievements...")
             } else if (currentStreak > 0) {
                 Text(
                     text = "$currentStreak-day streak! You're on fire! 🔥",
@@ -466,16 +368,10 @@ private fun AchievementSectionWithData(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(achievements.take(3)) { achievement ->
-                            AchievementChip(achievement = achievement)
+                            AchievementBadge(achievement = achievement)
                         }
                     }
                 }
-
-                Text(
-                    text = "Keep recording your chaos to unlock more achievements",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
-                )
             } else {
                 Text(
                     text = "Start your chaos journey to unlock achievements!",
@@ -488,9 +384,9 @@ private fun AchievementSectionWithData(
 }
 
 @Composable
-private fun AchievementChip(achievement: Achievement) {
+private fun AchievementBadge(achievement: Achievement) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
         color = if (achievement.isUnlocked)
             MaterialTheme.colorScheme.primary
         else MaterialTheme.colorScheme.outline
@@ -516,7 +412,7 @@ private fun AchievementChip(achievement: Achievement) {
 }
 
 @Composable
-private fun CommunityHighlightsSectionWithData(
+private fun CommunityHighlightsSection(
     highlight: CommunityHighlight,
     isLoading: Boolean,
     onViewCommunity: () -> Unit
@@ -546,9 +442,7 @@ private fun CommunityHighlightsSectionWithData(
             }
 
             if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp)
-                )
+                LoadingIndicator()
             } else {
                 Text(
                     text = "\"${highlight.content}\"",
@@ -564,209 +458,5 @@ private fun CommunityHighlightsSectionWithData(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun StatsItem(
-    emoji: String,
-    value: String,
-    label: String
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = emoji,
-            fontSize = 24.sp
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun QuickActionsSection(
-    onCreateChaos: () -> Unit,
-    onViewHistory: () -> Unit,
-    onVisitCommunity: () -> Unit
-) {
-    Column {
-        Text(
-            text = "⚡ Quick Actions",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            QuickActionCard(
-                modifier = Modifier.weight(1f),
-                icon = Icons.Default.Add,
-                title = "New Chaos",
-                subtitle = "Record today's adventure",
-                onClick = onCreateChaos
-            )
-            QuickActionCard(
-                modifier = Modifier.weight(1f),
-                icon = Icons.Default.History,
-                title = "View History",
-                subtitle = "Browse past entries",
-                onClick = onViewHistory
-            )
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        QuickActionCard(
-            modifier = Modifier.fillMaxWidth(),
-            icon = Icons.Default.People,
-            title = "Visit Community",
-            subtitle = "Find your chaos twins and share support",
-            onClick = onVisitCommunity,
-            isFullWidth = true
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun QuickActionCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    isFullWidth: Boolean = false
-) {
-    Card(
-        onClick = onClick,
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
-        )
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.size(32.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(
-                modifier = if (isFullWidth) Modifier.weight(1f) else Modifier
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CompactChaosCard(
-    entry: ChaosEntry,
-    onClick: () -> Unit
-) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.width(200.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = ChaosLevel.fromValue(entry.chaosLevel).emoji,
-                    fontSize = 20.sp
-                )
-                Text(
-                    text = entry.chaosLevel.toString(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = entry.title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                maxLines = 2
-            )
-            if (entry.miniWins.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "🏆 ${entry.miniWins.size} wins",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.tertiary
-                )
-            }
-        }
-    }
-}
-
-// Sample data for preview
-private fun getSampleChaosEntries(): List<ChaosEntry> {
-    return listOf(
-        ChaosEntry(
-            id = "1",
-            title = "Kazuma Style Monday",
-            description = "Hari ini seperti jadi leader party yang aneh tapi somehow berhasil",
-            chaosLevel = 6,
-            miniWins = listOf("Selesaikan presentation", "Bantu teman"),
-            createdAt = Clock.System.now(),
-            syncStatus = SyncStatus.SYNCED
-        ),
-        ChaosEntry(
-            id = "2",
-            title = "Megumin Energy",
-            description = "All or nothing approach hari ini!",
-            chaosLevel = 9,
-            miniWins = listOf("Explosion success!"),
-            createdAt = Clock.System.now(),
-            syncStatus = SyncStatus.SYNCED
-        )
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun HomeScreenPreview() {
-    DailyChaosTheme {
-        HomeScreen()
     }
 }

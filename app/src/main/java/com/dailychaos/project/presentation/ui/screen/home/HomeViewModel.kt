@@ -2,10 +2,7 @@ package com.dailychaos.project.presentation.ui.screen.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dailychaos.project.domain.model.ChaosEntry
-import com.dailychaos.project.domain.model.User
 import com.dailychaos.project.util.KonoSubaQuotes
-import com.dailychaos.project.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -13,7 +10,7 @@ import kotlinx.datetime.Clock
 import javax.inject.Inject
 
 /**
- * Home ViewModel
+ * Home ViewModel - Clean Architecture
  *
  * "ViewModel untuk Home Screen - seperti guild master yang manage semua quest!"
  */
@@ -42,19 +39,19 @@ class HomeViewModel @Inject constructor(
             is HomeUiEvent.RetryLoadingStats -> loadTodayStats()
             is HomeUiEvent.ClearError -> clearError()
             is HomeUiEvent.NavigateToEntry -> {
-                // TODO: Handle navigation to entry detail
+                // Navigation handled by UI
             }
             is HomeUiEvent.NavigateToCreateChaos -> {
-                // TODO: Handle navigation to create chaos
+                // Navigation handled by UI
             }
             is HomeUiEvent.NavigateToHistory -> {
-                // TODO: Handle navigation to history
+                // Navigation handled by UI
             }
             is HomeUiEvent.NavigateToCommunity -> {
-                // TODO: Handle navigation to community
+                // Navigation handled by UI
             }
             is HomeUiEvent.NavigateToProfile -> {
-                // TODO: Handle navigation to profile
+                // Navigation handled by UI
             }
             is HomeUiEvent.ShareEntry -> shareEntry(event.entryId)
             is HomeUiEvent.ToggleFavoriteEntry -> toggleFavoriteEntry(event.entryId)
@@ -115,7 +112,11 @@ class HomeViewModel @Inject constructor(
 
             try {
                 // TODO: Replace with actual use case
-                val mockUser = getMockUser()
+                // val user = getCurrentUserUseCase()
+
+                // Temporary mock data for development
+                val mockUser = createMockUser()
+
                 _uiState.update {
                     it.copy(
                         user = mockUser,
@@ -139,7 +140,11 @@ class HomeViewModel @Inject constructor(
 
             try {
                 // TODO: Replace with actual use case
-                val mockStats = getMockTodayStats()
+                // val stats = getUserStatsUseCase.getTodayStats()
+
+                // Temporary mock data for development
+                val mockStats = createMockTodayStats()
+
                 _uiState.update {
                     it.copy(
                         todayStats = mockStats,
@@ -163,7 +168,11 @@ class HomeViewModel @Inject constructor(
 
             try {
                 // TODO: Replace with actual use case
-                val mockEntries = getMockRecentEntries()
+                // val entries = getChaosEntriesUseCase.getRecent(limit = 5)
+
+                // Temporary mock data for development
+                val mockEntries = createMockRecentEntries()
+
                 _uiState.update {
                     it.copy(
                         recentEntries = mockEntries,
@@ -187,7 +196,11 @@ class HomeViewModel @Inject constructor(
 
             try {
                 // TODO: Replace with actual use case
-                val mockAchievements = getMockAchievements()
+                // val achievements = getAchievementsUseCase()
+                // val streak = getUserStatsUseCase.getCurrentStreak()
+
+                // Temporary mock data for development
+                val mockAchievements = createMockAchievements()
                 val mockStreak = 7
 
                 _uiState.update {
@@ -214,7 +227,11 @@ class HomeViewModel @Inject constructor(
 
             try {
                 // TODO: Replace with actual use case
-                val mockHighlight = getMockCommunityHighlight()
+                // val highlight = getCommunityHighlightsUseCase()
+
+                // Temporary mock data for development
+                val mockHighlight = createMockCommunityHighlight()
+
                 _uiState.update {
                     it.copy(
                         communityHighlight = mockHighlight,
@@ -274,9 +291,9 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    // Mock data functions - TODO: Remove when real use cases are implemented
-    private fun getMockUser(): User {
-        return User(
+    // Temporary mock data functions - TODO: Remove when real use cases are implemented
+    private fun createMockUser(): com.dailychaos.project.domain.model.User {
+        return com.dailychaos.project.domain.model.User(
             id = "mock_user_1",
             anonymousUsername = "Kazuma2025",
             chaosEntriesCount = 15,
@@ -286,7 +303,7 @@ class HomeViewModel @Inject constructor(
         )
     }
 
-    private fun getMockTodayStats(): TodayStats {
+    private fun createMockTodayStats(): TodayStats {
         return TodayStats(
             entriesCount = 2,
             miniWinsCount = 5,
@@ -298,14 +315,11 @@ class HomeViewModel @Inject constructor(
         )
     }
 
-    private fun getMockRecentEntries(): List<ChaosEntry> {
-        // Return mock chaos entries
-        return listOf(
-            // TODO: Create mock entries or use existing sample data
-        )
+    private fun createMockRecentEntries(): List<com.dailychaos.project.domain.model.ChaosEntry> {
+        return emptyList() // Return empty for now, will be populated when data layer is implemented
     }
 
-    private fun getMockAchievements(): List<Achievement> {
+    private fun createMockAchievements(): List<Achievement> {
         return listOf(
             Achievement(
                 id = "streak_7",
@@ -339,7 +353,7 @@ class HomeViewModel @Inject constructor(
         )
     }
 
-    private fun getMockCommunityHighlight(): CommunityHighlight {
+    private fun createMockCommunityHighlight(): CommunityHighlight {
         return CommunityHighlight(
             id = "highlight_1",
             title = "Aqua Moment",
