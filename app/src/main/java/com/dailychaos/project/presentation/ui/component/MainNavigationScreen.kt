@@ -5,6 +5,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -13,9 +14,9 @@ import androidx.navigation.compose.rememberNavController
 import com.dailychaos.project.presentation.ui.screen.home.HomeScreen
 
 /**
- * Main Navigation Screen Component - Updated
+ * Main Navigation Screen - Clean Design tanpa FAB
  *
- * "Screen utama yang mengatur navigation dan bottom bar dengan HomeScreen yang proper"
+ * "Navigation yang clean dengan fokus pada bottom navigation bar"
  */
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,9 +28,6 @@ fun MainNavigationScreen(
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-
-    // State untuk FAB menu
-    var isFabExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -48,20 +46,6 @@ fun MainNavigationScreen(
                 }
             )
         },
-        floatingActionButton = {
-            FloatingActionMenu(
-                isExpanded = isFabExpanded,
-                onToggle = { isFabExpanded = !isFabExpanded },
-                onNewChaosEntry = {
-                    isFabExpanded = false
-                    navController.navigate("create_chaos")
-                },
-                onShareToCommunity = {
-                    isFabExpanded = false
-                    navController.navigate("community")
-                }
-            )
-        },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
 
@@ -70,7 +54,7 @@ fun MainNavigationScreen(
             startDestination = "home",
             modifier = Modifier.padding(paddingValues)
         ) {
-            // Home Screen - Updated with proper implementation
+            // Home Screen
             composable("home") {
                 HomeScreen(
                     onNavigateToCreateChaos = {
@@ -209,7 +193,7 @@ fun MainNavigationScreen(
     }
 }
 
-// Placeholder content components - akan diganti dengan actual screens nanti
+// Placeholder content components
 @Composable
 private fun JournalScreenContent(
     onNavigateToCreateChaos: () -> Unit,
@@ -220,13 +204,17 @@ private fun JournalScreenContent(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "📝 Journal Screen",
+                text = "📝",
+                fontSize = 48.sp
+            )
+            Text(
+                text = "Journal Screen",
                 style = MaterialTheme.typography.headlineMedium
             )
-            Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onNavigateToCreateChaos) {
                 Text("Add New Entry")
             }
@@ -244,13 +232,17 @@ private fun CommunityScreenContent(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "🤝 Community Screen",
+                text = "🤝",
+                fontSize = 48.sp
+            )
+            Text(
+                text = "Community Screen",
                 style = MaterialTheme.typography.headlineMedium
             )
-            Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onNavigateToTwins) {
                 Text("Find Chaos Twins")
             }
@@ -268,13 +260,17 @@ private fun ProfileScreenContent(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "👤 Profile Screen",
+                text = "👤",
+                fontSize = 48.sp
+            )
+            Text(
+                text = "Profile Screen",
                 style = MaterialTheme.typography.headlineMedium
             )
-            Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onNavigateToSettings) {
                 Text("Settings")
             }
@@ -292,18 +288,23 @@ private fun CreateChaosScreenContent(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "✍️ Create Chaos Entry",
+                text = "✍️",
+                fontSize = 48.sp
+            )
+            Text(
+                text = "Create Chaos Entry",
                 style = MaterialTheme.typography.headlineMedium
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            Row {
-                Button(onClick = onNavigateBack) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(onClick = onNavigateBack) {
                     Text("Cancel")
                 }
-                Spacer(modifier = Modifier.width(8.dp))
                 Button(onClick = onChaosSaved) {
                     Text("Save")
                 }
@@ -323,22 +324,27 @@ private fun ChaosDetailScreenContent(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "📖 Chaos Entry Detail",
+                text = "📖",
+                fontSize = 48.sp
+            )
+            Text(
+                text = "Chaos Entry Detail",
                 style = MaterialTheme.typography.headlineMedium
             )
             Text(
                 text = "Entry ID: $entryId",
                 style = MaterialTheme.typography.bodyMedium
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            Row {
-                Button(onClick = onNavigateBack) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(onClick = onNavigateBack) {
                     Text("Back")
                 }
-                Spacer(modifier = Modifier.width(8.dp))
                 Button(onClick = onNavigateToEdit) {
                     Text("Edit")
                 }
@@ -358,22 +364,27 @@ private fun EditChaosScreenContent(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "✏️ Edit Chaos Entry",
+                text = "✏️",
+                fontSize = 48.sp
+            )
+            Text(
+                text = "Edit Chaos Entry",
                 style = MaterialTheme.typography.headlineMedium
             )
             Text(
                 text = "Editing Entry: $entryId",
                 style = MaterialTheme.typography.bodyMedium
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            Row {
-                Button(onClick = onNavigateBack) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(onClick = onNavigateBack) {
                     Text("Cancel")
                 }
-                Spacer(modifier = Modifier.width(8.dp))
                 Button(onClick = onChaosSaved) {
                     Text("Save Changes")
                 }
@@ -392,13 +403,17 @@ private fun ChaosHistoryScreenContent(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "📚 Chaos History",
+                text = "📚",
+                fontSize = 48.sp
+            )
+            Text(
+                text = "Chaos History",
                 style = MaterialTheme.typography.headlineMedium
             )
-            Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onNavigateBack) {
                 Text("Back")
             }
@@ -416,17 +431,21 @@ private fun CommunityPostDetailContent(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "💬 Community Post",
+                text = "💬",
+                fontSize = 48.sp
+            )
+            Text(
+                text = "Community Post",
                 style = MaterialTheme.typography.headlineMedium
             )
             Text(
                 text = "Post ID: $postId",
                 style = MaterialTheme.typography.bodyMedium
             )
-            Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onNavigateBack) {
                 Text("Back")
             }
@@ -444,13 +463,17 @@ private fun ChaosTwinsScreenContent(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "🤝 Chaos Twins",
+                text = "🤝",
+                fontSize = 48.sp
+            )
+            Text(
+                text = "Chaos Twins",
                 style = MaterialTheme.typography.headlineMedium
             )
-            Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onNavigateBack) {
                 Text("Back")
             }
@@ -467,13 +490,17 @@ private fun SettingsScreenContent(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "⚙️ Settings",
+                text = "⚙️",
+                fontSize = 48.sp
+            )
+            Text(
+                text = "Settings",
                 style = MaterialTheme.typography.headlineMedium
             )
-            Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onNavigateBack) {
                 Text("Back")
             }
