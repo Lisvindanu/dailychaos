@@ -18,14 +18,14 @@ data class User(
     val streakDays: Int = 0,
     val joinedAt: Instant = Instant.DISTANT_PAST,
     val lastActiveAt: Instant = Instant.DISTANT_PAST,
-    val preferences: UserPreferences = UserPreferences()
+    val settings: UserSettings = UserSettings()
 )
 
 /**
- * User Preferences - Preferensi pengguna
+ * User Settings - Settings pengguna (renamed to avoid conflict)
  */
 @Serializable
-data class UserPreferences(
+data class UserSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val notificationsEnabled: Boolean = true,
     val dailyReminderTime: String? = null, // Format: "HH:mm"
@@ -34,10 +34,10 @@ data class UserPreferences(
     val konosubaQuotesEnabled: Boolean = true,
     val anonymousMode: Boolean = true
 )
-
 /**
- * Theme Mode
+ * Login request data
  */
-enum class ThemeMode {
-    LIGHT, DARK, SYSTEM
-}
+data class LoginRequest(
+    val username: String
+)
+
