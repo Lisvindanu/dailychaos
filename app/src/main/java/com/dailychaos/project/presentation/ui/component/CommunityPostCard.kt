@@ -1,15 +1,17 @@
 package com.dailychaos.project.presentation.ui.component
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.*
+import androidx.compose.ui.unit.dp
 import com.dailychaos.project.domain.model.CommunityPost
 import com.dailychaos.project.domain.model.SupportType
 import com.dailychaos.project.util.timeAgo
@@ -19,21 +21,16 @@ import com.dailychaos.project.util.timeAgo
  *
  * "Card untuk menampilkan post dari komunitas dengan fitur support"
  */
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CommunityPostCard(
     communityPost: CommunityPost,
+    onCardClick: () -> Unit,
     onSupportClick: (SupportType) -> Unit,
     onReportClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+    ParchmentCard(
+        modifier = modifier.clickable { onCardClick() }
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -52,12 +49,13 @@ fun CommunityPostCard(
                     Text(
                         text = communityPost.anonymousUsername,
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = communityPost.createdAt.timeAgo(),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                 }
                 ChaosLevelBadge(chaosLevel = communityPost.chaosLevel)
@@ -69,13 +67,14 @@ fun CommunityPostCard(
             Text(
                 text = communityPost.title,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = communityPost.description,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(16.dp))

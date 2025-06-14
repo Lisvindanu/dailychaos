@@ -1,5 +1,6 @@
 package com.dailychaos.project.presentation.ui.component
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -8,12 +9,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.*
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.dailychaos.project.domain.model.ChaosEntry
 import com.dailychaos.project.domain.model.ChaosLevel
 import com.dailychaos.project.domain.model.SyncStatus
@@ -34,13 +37,8 @@ fun ChaosEntryCard(
     onEditClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        onClick = onCardClick,
-        modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+    ParchmentCard(
+        modifier = modifier.clickable { onCardClick() }
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -57,12 +55,13 @@ fun ChaosEntryCard(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = chaosEntry.createdAt.timeAgo(),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                 }
 
@@ -78,7 +77,7 @@ fun ChaosEntryCard(
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             // Mini Wins
@@ -113,7 +112,8 @@ fun ChaosEntryCard(
                         IconButton(onClick = it) {
                             Icon(
                                 Icons.Default.Edit,
-                                contentDescription = "Edit"
+                                contentDescription = "Edit",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -121,7 +121,8 @@ fun ChaosEntryCard(
                         IconButton(onClick = it) {
                             Icon(
                                 Icons.Default.Share,
-                                contentDescription = "Share"
+                                contentDescription = "Share",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }

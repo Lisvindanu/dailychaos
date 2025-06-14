@@ -28,7 +28,7 @@ import com.dailychaos.project.presentation.ui.component.EmptyState
 import com.dailychaos.project.presentation.ui.component.ErrorMessage
 import com.dailychaos.project.presentation.ui.component.LoadingIndicator
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
+@OptIn(ExperimentalMaterialApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun CommunityFeedScreen(
     viewModel: CommunityFeedViewModel = hiltViewModel(),
@@ -94,6 +94,8 @@ fun CommunityFeedScreen(
                         items(uiState.posts) { post ->
                             CommunityPostCard(
                                 communityPost = post,
+                                // FIX: Menambahkan parameter onCardClick yang hilang
+                                onCardClick = { onNavigateToPost(post.id) },
                                 onSupportClick = { type ->
                                     viewModel.onEvent(CommunityFeedEvent.GiveSupport(post.id, type))
                                 },

@@ -1,15 +1,16 @@
 package com.dailychaos.project.presentation.ui.component
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.TrendingDown
+import androidx.compose.material.icons.filled.TrendingFlat
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.*
+import androidx.compose.ui.unit.dp
 
 /**
  * Stats Card Component
@@ -17,61 +18,55 @@ import androidx.compose.ui.unit.*
  * "Card untuk menampilkan statistik user dengan trend indicator"
  */
 
+enum class StatsCardTrend {
+    UP, DOWN, STABLE
+}
+
 @Composable
 fun StatsCard(
     title: String,
     value: String,
-    icon: String,
+    // Parameter 'icon' tidak digunakan di layout ini, bisa dihapus jika mau
+    // icon: String,
     subtitle: String? = null,
     trend: StatsCardTrend? = null,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        shape = RoundedCornerShape(12.dp)
+    // Menggunakan ParchmentCard yang sudah kita buat
+    ParchmentCard(
+        modifier = modifier
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = icon,
-                    fontSize = 24.sp
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
-                trend?.let {
-                    TrendIndicator(trend = it)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = value,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                style = MaterialTheme.typography.displaySmall,
+                color = MaterialTheme.colorScheme.primary
             )
-
-            subtitle?.let {
+            if (subtitle != null || trend != null) {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (trend != null) {
+                        TrendIndicator(trend = trend)
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    if (subtitle != null) {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
             }
         }
     }
@@ -80,9 +75,9 @@ fun StatsCard(
 @Composable
 private fun TrendIndicator(trend: StatsCardTrend) {
     val (icon, color) = when (trend) {
-        StatsCardTrend.UP -> Icons.Default.TrendingUp to Color.Green
-        StatsCardTrend.DOWN -> Icons.Default.TrendingDown to Color.Red
-        StatsCardTrend.STABLE -> Icons.Default.TrendingFlat to Color.Gray
+        StatsCardTrend.UP -> Icons.Default.TrendingUp to MaterialTheme.colorScheme.secondary
+        StatsCardTrend.DOWN -> Icons.Default.TrendingDown to MaterialTheme.colorScheme.error
+        StatsCardTrend.STABLE -> Icons.Default.TrendingFlat to MaterialTheme.colorScheme.outline
     }
 
     Icon(
@@ -91,8 +86,4 @@ private fun TrendIndicator(trend: StatsCardTrend) {
         tint = color,
         modifier = Modifier.size(16.dp)
     )
-}
-
-enum class StatsCardTrend {
-    UP, DOWN, STABLE
 }

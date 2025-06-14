@@ -41,6 +41,7 @@ firebase-bom = "33.5.1"
 google-services = "4.4.2"
 firebase-crashlytics = "3.0.2"
 firebase-perf = "1.4.2"
+coreSplashscreen = "1.0.1"
 
 [libraries]
 androidx-activity-compose-v182 = { module = "androidx.activity:activity-compose", version.ref = "activityComposeVersion" }
@@ -135,6 +136,7 @@ firebase-analytics-ktx = { group = "com.google.firebase", name = "firebase-analy
 firebase-crashlytics-ktx = { group = "com.google.firebase", name = "firebase-crashlytics-ktx" }
 firebase-perf-ktx = { group = "com.google.firebase", name = "firebase-perf-ktx" }
 firebase-config-ktx = { group = "com.google.firebase", name = "firebase-config-ktx" }
+androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -188,6 +188,7 @@ dependencies {
 
     // Hilt - Dependency Injection
     implementation(libs.hilt.android)
+    implementation(libs.androidx.core.splashscreen)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
 
