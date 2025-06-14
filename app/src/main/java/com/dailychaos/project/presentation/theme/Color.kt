@@ -2,7 +2,7 @@ package com.dailychaos.project.presentation.theme
 
 import androidx.compose.ui.graphics.Color
 
-// KonoSuba Inspired Colors
+ //KonoSuba Inspired Colors
 val ChaosBlue = Color(0xFF2196F3)        // Aqua's signature blue
 val ChaosBlueLight = Color(0xFF64B5F6)
 val ChaosBlueDark = Color(0xFF1976D2)
@@ -45,3 +45,20 @@ val Pink80 = Color(0xFFEFB8C8)
 val Purple40 = Color(0xFF6650a4)
 val PurpleGrey40 = Color(0xFF625b71)
 val Pink40 = Color(0xFF7D5260)
+
+
+// --- TEMA BARU: PARCHMENT (KERTAS TUA) ---
+
+// Warna dasar untuk Light Mode
+val Parchment = Color(0xFFF5EEDC)      // Warna dasar kertas tua yang sedikit menguning
+val InkBlack = Color(0xFF2C2B2A)       // Warna tinta hitam yang sedikit pudar
+val BurntBrown = Color(0xFF6B4F3A)     // Warna noda terbakar/coklat tua untuk Aksen Utama (Primary)
+val FadedBrown = Color(0xFFA1887F)     // Warna coklat pudar untuk sub-teks atau outline
+val Sepia = Color(0xFF704214)          // Warna sepia untuk Aksen Sekunder (Secondary)
+val OldPaperHighlight = Color(0xFFFFF8E1) // Warna permukaan yang sedikit lebih terang dari background
+
+// Warna untuk Dark Mode (jika diperlukan, bisa dibuat lebih gelap)
+// Untuk saat ini kita fokus pada Light Mode sesuai gambar
+val DarkParchment = Color(0xFFD7CCC8)
+val DarkInk = Color(0xFF3E2723)
+

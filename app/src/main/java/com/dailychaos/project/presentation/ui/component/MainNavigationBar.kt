@@ -1,69 +1,51 @@
 package com.dailychaos.project.presentation.ui.component
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.*
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Divider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 
 /**
- * Main Navigation Bar Component
+ * MainNavigationBar - Bottom navigation bar kustom dengan tema Parchment.
  *
- * "Bottom navigation bar dengan animasi emoji untuk selected state"
+ * Membungkus NavigationBar standar untuk memberikan style kustom (latar belakang kertas tua dan border atas).
+ *
+ * @param modifier Modifier untuk kustomisasi dari luar.
+ * @param content Berisi semua `NavigationBarItem` yang akan ditampilkan.
  */
-
 @Composable
 fun MainNavigationBar(
-    selectedRoute: String,
-    onNavigate: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    content: @Composable RowScope.() -> Unit
 ) {
-    NavigationBar(
-        modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = 8.dp
+    // Surface sebagai container utama.
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        // Menggunakan surfaceVariant sebagai latar belakang OldPaperHighlight
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        // Memberi bayangan agar bar terangkat dari konten di belakangnya
+        shadowElevation = 8.dp
     ) {
-        val items = listOf(
-            NavigationItem("home", "Home", "🏠", Icons.Default.Home),
-            NavigationItem("journal", "Journal", "📝", Icons.Default.Book),
-            NavigationItem("community", "Community", "🤝", Icons.Default.People),
-            NavigationItem("profile", "Profile", "👤", Icons.Default.Person)
-        )
+        Column {
+            // Divider sebagai border cokelat di bagian atas
+            Divider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
 
-        items.forEach { item ->
-            NavigationBarItem(
-                selected = selectedRoute == item.route,
-                onClick = { onNavigate(item.route) },
-                icon = {
-                    if (selectedRoute == item.route) {
-                        Text(
-                            text = item.emoji,
-                            fontSize = 24.sp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = item.icon,
-                            contentDescription = item.label
-                        )
-                    }
-                },
-                label = {
-                    Text(
-                        text = item.label,
-                        style = MaterialTheme.typography.labelSmall
-                    )
-                },
-                alwaysShowLabel = true
+            NavigationBar(
+                modifier = Modifier,
+                // Warna container NavigationBar dibuat transparan karena sudah di-handle oleh Surface
+                containerColor = Color.Transparent,
+                // Matikan shadow/elevation bawaan karena sudah di-handle oleh Surface
+                tonalElevation = 0.dp,
+                // Konten (semua NavigationBarItem) dimasukkan dari luar
+                content = content
             )
         }
     }
 }
-
-private data class NavigationItem(
-    val route: String,
-    val label: String,
-    val emoji: String,
-    val icon: ImageVector
-)

@@ -1,13 +1,15 @@
 package com.dailychaos.project.presentation.ui.component
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.*
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.dailychaos.project.domain.model.CommunityPost
 
 /**
@@ -15,7 +17,6 @@ import com.dailychaos.project.domain.model.CommunityPost
  *
  * "Card untuk menampilkan chaos twins - orang dengan perjuangan serupa"
  */
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChaosTwinsCard(
@@ -25,13 +26,8 @@ fun ChaosTwinsCard(
     onSupportClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        onClick = onViewClick,
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ParchmentCard(
+        modifier = modifier.clickable { onViewClick() }
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -50,7 +46,7 @@ fun ChaosTwinsCard(
                     text = "Chaos Twin Found!",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
@@ -77,12 +73,12 @@ fun ChaosTwinsCard(
                         text = twinPost.anonymousUsername,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "Chaos Level ${twinPost.chaosLevel}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -93,7 +89,7 @@ fun ChaosTwinsCard(
             Text(
                 text = twinPost.description,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -103,21 +99,16 @@ fun ChaosTwinsCard(
             // Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedButton(
-                    onClick = onViewClick,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
+                    onClick = onViewClick
                 ) {
                     Text("View Full")
                 }
                 Button(
-                    onClick = onSupportClick,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
+                    onClick = onSupportClick
                 ) {
                     Text("💙 Support")
                 }
