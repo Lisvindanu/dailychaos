@@ -73,6 +73,25 @@ fun String.Companion.generateAnonymousUsername(): String {
     return "$randomPrefix$randomNumber"
 }
 
+/**
+ * Clean username by removing invalid characters
+ */
+fun String.cleanUsername(): String {
+    return this.filter { it.isLetterOrDigit() || it == '_' }
+}
+
+/**
+ * Generate display name from username
+ */
+fun String.toDisplayName(): String {
+    return this.split("_")
+        .joinToString(" ") { word ->
+            word.lowercase().replaceFirstChar {
+                if (it.isLowerCase()) it.titlecase() else it.toString()
+            }
+        }
+}
+
 // ================================
 // DATETIME EXTENSIONS
 // ================================
@@ -276,6 +295,78 @@ fun String.isValidChaosDescription(): Boolean {
  */
 fun String?.isNotBlankOrEmpty(): Boolean {
     return !isNullOrBlank()
+}
+
+/**
+ * Validate username format (basic rules)
+ */
+fun String.isValidUsernameFormat(): Boolean {
+    return this.isNotBlank() &&
+            this.length in 3..20 &&
+            this.matches(Regex("^[a-zA-Z0-9_]+$"))
+}
+
+/**
+ * Check if username contains forbidden words
+ */
+fun String.containsForbiddenWords(): Boolean {
+    val forbiddenWords = listOf("admin", "root", "moderator", "system")
+    return forbiddenWords.any {
+        this.contains(it, ignoreCase = true)
+    }
+}
+
+/**
+ * Get fun validation message for username errors
+ * "KonoSuba-themed validation messages!"
+ */
+fun String.getUsernameErrorMessage(): String? {
+    return when {
+        this.isBlank() -> "Username tidak boleh kosong!"
+        this.length < 3 -> "Username minimal 3 karakter - ini bukan nama explosion spell!"
+        this.length > 20 -> "Username maksimal 20 karakter - ini bukan nama jutsu Naruto!"
+        !this.matches(Regex("^[a-zA-Z0-9_]+$")) -> "Username hanya boleh huruf, angka, dan underscore"
+        this.containsForbiddenWords() -> "Nice try! Username '$this' dilarang"
+        this.contains("aqua", ignoreCase = true) && this.contains("useless", ignoreCase = true) ->
+            "Hey! Aqua might be useless but she's still a goddess!"
+        else -> null // No error
+    }
+}
+
+/**
+ * Generate username suggestions based on base name
+ */
+fun String.generateUsernameSuggestions(): List<String> {
+    val suggestions = mutableListOf<String>()
+    val cleanBase = this.cleanUsername().take(15)
+
+    if (cleanBase.isNotEmpty()) {
+        // KonoSuba inspired suggestions
+        val konoSubaSuffixes = listOf("Adventurer", "Hero", "Mage", "Crusader", "Thief", "Priest")
+        val numbers = (1..99).shuffled().take(3)
+        val adjectives = listOf("Epic", "Chaos", "Lucky", "Brave", "Wild", "Cool")
+
+        // Add number variations
+        numbers.forEach { num ->
+            suggestions.add("${cleanBase}$num")
+        }
+
+        // Add adjective + base
+        adjectives.take(2).forEach { adj ->
+            if ((adj + cleanBase).length <= 20) {
+                suggestions.add("$adj$cleanBase")
+            }
+        }
+
+        // Add base + suffix
+        konoSubaSuffixes.take(2).forEach { suffix ->
+            if ((cleanBase + suffix).length <= 20) {
+                suggestions.add("$cleanBase$suffix")
+            }
+        }
+    }
+
+    return suggestions.distinct().take(6)
 }
 
 // ================================

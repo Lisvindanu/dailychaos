@@ -1,6 +1,7 @@
 package com.dailychaos.project.di
 
 import android.content.Context
+import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Module
@@ -46,6 +47,19 @@ object FirebaseModule {
                 android.util.Log.w("FirebaseModule", "Could not set Firestore settings: ${e.message}")
             }
         }
+    }
+
+    /**
+     * Provide FirebaseAuthService
+     */
+    @Provides
+    @Singleton
+    fun provideFirebaseAuthService(
+        firebaseAuth: FirebaseAuth,
+        firestore: FirebaseFirestore,
+        userPreferences: com.dailychaos.project.preferences.UserPreferences
+    ): FirebaseAuthService {
+        return FirebaseAuthService(firebaseAuth, firestore, userPreferences)
     }
 
     // TEMPORARY: Comment out other Firebase services untuk local development

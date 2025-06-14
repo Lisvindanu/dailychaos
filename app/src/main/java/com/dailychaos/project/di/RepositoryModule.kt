@@ -1,44 +1,36 @@
 package com.dailychaos.project.di
 
+import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
+import com.dailychaos.project.data.repository.AuthRepositoryImpl
+import com.dailychaos.project.domain.repository.AuthRepository
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
 
 /**
  * Repository Dependency Injection Module
- *
- * "Binding repositories - temporarily disabled untuk local development"
+ * "Connecting the data layers to domain layer"
  */
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class RepositoryModule {
+object RepositoryModule {
 
-    // TEMPORARY: Comment out semua @Binds untuk local development
-    // Nanti di-enable ketika implement repositories
-
-    /*
-    @Binds
+    @Provides
     @Singleton
-    abstract fun bindAuthRepository(
-        authRepositoryImpl: AuthRepositoryImpl
-    ): AuthRepository
+    fun provideAuthRepository(
+        firebaseAuthService: FirebaseAuthService
+    ): AuthRepository {
+        return AuthRepositoryImpl(firebaseAuthService)
+    }
 
-    @Binds
-    @Singleton
-    abstract fun bindChaosRepository(
-        chaosRepositoryImpl: ChaosRepositoryImpl
-    ): ChaosRepository
+    // TODO: Add other repositories as needed
+    // @Provides
+    // @Singleton
+    // fun provideChaosRepository(...): ChaosRepository = ...
 
-    @Binds
-    @Singleton
-    abstract fun bindCommunityRepository(
-        communityRepositoryImpl: CommunityRepositoryImpl
-    ): CommunityRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindUserRepository(
-        userRepositoryImpl: UserRepositoryImpl
-    ): UserRepository
-    */
+    // @Provides
+    // @Singleton
+    // fun provideCommunityRepository(...): CommunityRepository = ...
 }
