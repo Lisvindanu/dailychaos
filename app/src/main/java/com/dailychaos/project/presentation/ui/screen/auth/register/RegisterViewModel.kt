@@ -157,7 +157,7 @@ class RegisterViewModel @Inject constructor(
                         _uiState.update {
                             it.copy(
                                 isUsernameValid = false,
-                                usernameError = validationResult.errorMessage,
+                                usernameError = validationResult.message,
                                 suggestions = emptyList()
                             )
                         }
