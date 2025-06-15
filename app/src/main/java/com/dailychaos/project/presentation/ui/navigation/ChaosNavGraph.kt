@@ -1,3 +1,4 @@
+// File: app/src/main/java/com/dailychaos/project/presentation/ui/navigation/ChaosNavGraph.kt
 package com.dailychaos.project.presentation.ui.navigation
 
 import androidx.compose.foundation.background
@@ -195,18 +196,21 @@ private fun ChaosNavHost(
         modifier = Modifier.padding(contentPadding)
     ) {
 
-        // Splash Screen
+        // Splash Screen - Fixed
         composable(ChaosDestinations.SPLASH_ROUTE) {
-            SplashScreen { destination ->
-                val route = when (destination) {
-                    com.dailychaos.project.presentation.ui.screen.splash.SplashDestination.Onboarding -> ChaosDestinations.ONBOARDING_ROUTE
-                    com.dailychaos.project.presentation.ui.screen.splash.SplashDestination.Auth -> ChaosDestinations.LOGIN_ROUTE
-                    com.dailychaos.project.presentation.ui.screen.splash.SplashDestination.Home -> ChaosDestinations.HOME_ROUTE
-                }
-                navController.navigate(route) {
-                    popUpTo(ChaosDestinations.SPLASH_ROUTE) { inclusive = true }
-                }
-            }
+            SplashScreen(
+                onNavigateToOnboarding = {
+                    navController.navigate(ChaosDestinations.ONBOARDING_ROUTE) {
+                        popUpTo(ChaosDestinations.SPLASH_ROUTE) { inclusive = true }
+                    }
+                },
+                onNavigateToHome = {
+                    navController.navigate(ChaosDestinations.HOME_ROUTE) {
+                        popUpTo(ChaosDestinations.SPLASH_ROUTE) { inclusive = true }
+                    }
+                },
+                isUserLoggedIn = mainViewModel?.isUserLoggedIn() ?: false
+            )
         }
 
         // Onboarding
@@ -237,7 +241,7 @@ private fun ChaosNavHost(
         composable(ChaosDestinations.REGISTER_ROUTE) {
             RegisterScreen(
                 onRegisterSuccess = {
-                    navController.navigate(ChaosDestinations.HOME_ROUTE) {
+                    navController.navigate(ChaosDestinations.LOGIN_ROUTE) {
                         popUpTo(ChaosDestinations.REGISTER_ROUTE) { inclusive = true }
                     }
                 },
@@ -290,7 +294,7 @@ private fun ChaosNavHost(
                 onNavigateToSettings = {
                     navController.navigate(ChaosDestinations.SETTINGS_ROUTE)
                 },
-                onLogout = {
+                onNavigateToLogin = {
                     mainViewModel?.userLoggedOut()
                     navController.navigate(ChaosDestinations.LOGIN_ROUTE) {
                         popUpTo(0) { inclusive = true }
