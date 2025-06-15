@@ -42,6 +42,7 @@ class UserPreferences @Inject constructor(
         private val AUTH_TYPE = stringPreferencesKey("auth_type")
         private val CHAOS_LEVEL = intPreferencesKey("chaos_level")
         private val PARTY_ROLE = stringPreferencesKey("party_role")
+        private val USERNAME = stringPreferencesKey("username") // ADDED untuk username registration
     }
 
     // ================================
@@ -231,6 +232,21 @@ class UserPreferences @Inject constructor(
         }
         .map { preferences ->
             preferences[DISPLAY_NAME]
+        }
+
+    /**
+     * Get username (ADDED untuk username registration)
+     */
+    val username: Flow<String?> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { preferences ->
+            preferences[USERNAME]
         }
 
     /**
@@ -448,6 +464,19 @@ class UserPreferences @Inject constructor(
     }
 
     /**
+     * Set username (ADDED untuk username registration)
+     */
+    suspend fun setUsername(username: String?) {
+        dataStore.edit { preferences ->
+            if (username != null) {
+                preferences[USERNAME] = username
+            } else {
+                preferences.remove(USERNAME)
+            }
+        }
+    }
+
+    /**
      * Set authentication type (username, email, anonymous)
      */
     suspend fun setAuthType(authType: String) {
@@ -493,6 +522,50 @@ class UserPreferences @Inject constructor(
     }
 
     // ================================
+    // AUTHENTICATION HELPER METHODS (ADDED)
+    // ================================
+
+    /**
+     * Save user data after successful authentication (ADDED)
+     */
+    suspend fun saveUserData(
+        userId: String,
+        username: String?,
+        displayName: String,
+        email: String? = null
+    ) {
+        dataStore.edit { preferences ->
+            preferences[USER_ID] = userId
+            if (username != null) {
+                preferences[USERNAME] = username
+            }
+            preferences[DISPLAY_NAME] = displayName
+            if (email != null) {
+                preferences[USER_EMAIL] = email
+            }
+        }
+    }
+
+    /**
+     * Update user profile data (ADDED)
+     */
+    suspend fun updateUserProfile(
+        username: String?,
+        displayName: String,
+        email: String? = null
+    ) {
+        dataStore.edit { preferences ->
+            if (username != null) {
+                preferences[USERNAME] = username
+            }
+            preferences[DISPLAY_NAME] = displayName
+            if (email != null) {
+                preferences[USER_EMAIL] = email
+            }
+        }
+    }
+
+    // ================================
     // CLEAR PREFERENCES
     // ================================
 
@@ -512,6 +585,7 @@ class UserPreferences @Inject constructor(
         dataStore.edit { preferences ->
             preferences.remove(USER_ID)
             preferences.remove(USER_EMAIL)
+            preferences.remove(USERNAME) // ADDED
             preferences.remove(ANONYMOUS_USERNAME)
             preferences.remove(DISPLAY_NAME)
             preferences.remove(AUTH_TYPE)

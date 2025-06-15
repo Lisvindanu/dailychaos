@@ -43,16 +43,17 @@ import com.dailychaos.project.util.PasswordStrength
 @Composable
 fun RegisterScreen(
     onNavigateToLogin: () -> Unit,
-    onRegisterSuccess: () -> Unit,
+    onRegisterSuccess: () -> Unit, // FIX: Callback akan redirect ke login screen
     modifier: Modifier = Modifier,
     viewModel: RegisterViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
 
-    // Observe register success event
+    // Observe register success event - FIX: Navigation akan ke login
     LaunchedEffect(Unit) {
         viewModel.registerSuccessEvent.collect {
+            // Ketika register berhasil, arahkan ke login screen
             onRegisterSuccess()
         }
     }
@@ -69,7 +70,7 @@ fun RegisterScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Header
+            // Header - UPDATED dengan pesan yang lebih jelas
             RegisterHeader()
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -108,6 +109,9 @@ fun RegisterScreen(
                         isPasswordVisible = uiState.isPasswordVisible,
                         isConfirmPasswordVisible = uiState.isConfirmPasswordVisible,
                         isLoading = uiState.isLoading,
+                        emailError = uiState.emailError, // ADDED error handling
+                        passwordError = uiState.passwordError, // ADDED error handling
+                        confirmPasswordError = uiState.confirmPasswordError, // ADDED error handling
                         onEmailChanged = { viewModel.onEvent(RegisterEvent.EmailChanged(it)) },
                         onPasswordChanged = { viewModel.onEvent(RegisterEvent.PasswordChanged(it)) },
                         onConfirmPasswordChanged = { viewModel.onEvent(RegisterEvent.ConfirmPasswordChanged(it)) },
@@ -159,7 +163,7 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Login Redirect
+            // Login Redirect - UPDATED dengan pesan yang lebih jelas
             LoginRedirectSection(onNavigateToLogin = onNavigateToLogin)
         }
     }
@@ -183,6 +187,14 @@ private fun RegisterHeader() {
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
+        // ADDED: Info tentang flow registrasi
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Setelah registrasi, kamu akan diarahkan ke halaman login untuk masuk",
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
         )
     }
 }
@@ -407,6 +419,9 @@ private fun EmailRegisterForm(
     isPasswordVisible: Boolean,
     isConfirmPasswordVisible: Boolean,
     isLoading: Boolean,
+    emailError: String?, // ADDED
+    passwordError: String?, // ADDED
+    confirmPasswordError: String?, // ADDED
     onEmailChanged: (String) -> Unit,
     onPasswordChanged: (String) -> Unit,
     onConfirmPasswordChanged: (String) -> Unit,
@@ -455,6 +470,10 @@ private fun EmailRegisterForm(
                     contentDescription = null
                 )
             },
+            isError = emailError != null, // ADDED
+            supportingText = if (emailError != null) { // ADDED
+                { Text(emailError) }
+            } else null,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Email,
                 imeAction = ImeAction.Next
@@ -489,6 +508,10 @@ private fun EmailRegisterForm(
                     )
                 }
             },
+            isError = passwordError != null, // ADDED
+            supportingText = if (passwordError != null) { // ADDED
+                { Text(passwordError) }
+            } else null,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Password,
                 imeAction = ImeAction.Next
@@ -533,6 +556,10 @@ private fun EmailRegisterForm(
                     )
                 }
             },
+            isError = confirmPasswordError != null, // ADDED
+            supportingText = if (confirmPasswordError != null) { // ADDED
+                { Text(confirmPasswordError) }
+            } else null,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Password,
                 imeAction = ImeAction.Done

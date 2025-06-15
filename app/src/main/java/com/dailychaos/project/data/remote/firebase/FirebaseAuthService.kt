@@ -32,8 +32,13 @@ class FirebaseAuthService @Inject constructor(
         get() = firebaseAuth.currentUser
 
     /**
-     * Register with username (anonymous auth + username validation)
-     * "Welcome new party member! Choose your adventure name wisely!"
+     * Check if user is authenticated
+     */
+    fun isAuthenticated(): Boolean = currentUser != null
+
+    /**
+     * Register with username (email auth + username/displayName)
+     * FIX: User won't be anonymous if they register with username + display name
      */
     suspend fun registerWithUsername(username: String, displayName: String): Result<FirebaseUser> {
         return try {
@@ -49,20 +54,32 @@ class FirebaseAuthService @Inject constructor(
                 return Result.failure(Exception("Username '$username' sudah digunakan! Coba yang lain seperti '${username}Hero'"))
             }
 
-            // Sign in anonymously first
-            val authResult = firebaseAuth.signInAnonymously().await()
-            val user = authResult.user ?: throw Exception("Anonymous registration gagal")
+            // Create email from username for Firebase Auth (tidak anonymous)
+            val generatedEmail = "${username}@dailychaos.local"
+            val temporaryPassword = generateSecurePassword()
+
+            // Create user with email/password (bukan anonymous)
+            val authResult = firebaseAuth.createUserWithEmailAndPassword(generatedEmail, temporaryPassword).await()
+            val user = authResult.user ?: throw Exception("User creation failed")
+
+            // Update profile with display name untuk avoid anonymous
+            val profileUpdates = UserProfileChangeRequest.Builder()
+                .setDisplayName(displayName.ifBlank { username })
+                .build()
+            user.updateProfile(profileUpdates).await()
 
             // Create user profile with username and display name
             val profileResult = createUserProfile(
                 userId = user.uid,
                 username = username,
                 displayName = displayName.ifBlank { username },
-                email = null,
+                email = generatedEmail,
                 authType = "username"
             )
 
             if (profileResult.isSuccess) {
+                // Save to preferences
+                userPreferences.saveUserData(user.uid, username, displayName.ifBlank { username })
                 Result.success(user)
             } else {
                 // Rollback: delete user if profile creation fails
@@ -78,41 +95,45 @@ class FirebaseAuthService @Inject constructor(
      * Register with email and password
      * "Join the party with full credentials!"
      */
-    suspend fun registerWithEmail(email: String, password: String, displayName: String): Result<FirebaseUser> {
+    suspend fun registerWithEmail(
+        email: String,
+        password: String,
+        displayName: String
+    ): Result<FirebaseUser> {
         return try {
             // Validate email format
             if (!isValidEmail(email)) {
-                return Result.failure(Exception("Format email tidak valid"))
+                return Result.failure(Exception("Format email tidak valid!"))
             }
 
-            // Validate password strength
-            if (password.length < 6) {
-                return Result.failure(Exception("Password minimal 6 karakter"))
+            // Check if email is already in use
+            val isEmailAvailable = checkEmailAvailability(email)
+            if (!isEmailAvailable) {
+                return Result.failure(Exception("Email sudah terdaftar! Gunakan email lain atau coba login."))
             }
 
-            // Create account with email and password
+            // Create user with email and password
             val authResult = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
-            val user = authResult.user ?: throw Exception("Email registration gagal")
+            val user = authResult.user ?: throw Exception("Registration failed")
 
-            // Update profile with display name
+            // Update profile dengan display name
             val profileUpdates = UserProfileChangeRequest.Builder()
-                .setDisplayName(displayName.ifBlank { generateUsernameFromEmail(email) })
+                .setDisplayName(displayName.ifBlank { "Chaos Member" })
                 .build()
             user.updateProfile(profileUpdates).await()
-
-            // Generate username from email (fallback)
-            val generatedUsername = generateUsernameFromEmail(email)
 
             // Create user profile in Firestore
             val profileResult = createUserProfile(
                 userId = user.uid,
-                username = generatedUsername,
-                displayName = displayName.ifBlank { generatedUsername },
+                username = null, // No username for email registration
+                displayName = displayName.ifBlank { "Chaos Member" },
                 email = email,
                 authType = "email"
             )
 
             if (profileResult.isSuccess) {
+                // Save to preferences
+                userPreferences.saveUserData(user.uid, null, displayName.ifBlank { "Chaos Member" })
                 Result.success(user)
             } else {
                 // Rollback: delete user if profile creation fails
@@ -125,46 +146,42 @@ class FirebaseAuthService @Inject constructor(
     }
 
     /**
-     * Login with username (for existing users)
-     * "Welcome back to the party!"
+     * Login with username
+     * FIX: Login using stored credentials for username-based accounts
      */
     suspend fun loginWithUsername(username: String): Result<FirebaseUser> {
         return try {
-            // For username-based auth, we need to find the user first
+            // Find user by username in Firestore
             val userQuery = firestore.collection("users")
                 .whereEqualTo("username", username)
                 .limit(1)
                 .get()
                 .await()
 
-            if (userQuery.isEmpty) {
-                return Result.failure(Exception("Username '$username' tidak ditemukan! Silakan register terlebih dahulu."))
+            if (userQuery.documents.isEmpty()) {
+                return Result.failure(Exception("Username '$username' tidak ditemukan! Pastikan username benar atau daftar dulu."))
             }
 
             val userDoc = userQuery.documents.first()
-            val userData = userDoc.data
-            val authType = userData?.get("authType") as? String
+            val userData = userDoc.data ?: return Result.failure(Exception("Data user tidak valid"))
 
-            when (authType) {
-                "username" -> {
-                    // For username auth, we use anonymous auth and match the existing profile
-                    val authResult = firebaseAuth.signInAnonymously().await()
-                    val user = authResult.user ?: throw Exception("Login gagal")
+            // Get email from stored user data
+            val storedEmail = userData["email"] as? String
+                ?: return Result.failure(Exception("Email user tidak ditemukan"))
 
-                    // Update user preferences
-                    userPreferences.setUserId(user.uid)
-                    userPreferences.setAnonymousUsername(username)
-                    userPreferences.setDisplayName(userData["displayName"] as? String ?: username)
+            // Get stored password hash (in real app, use proper auth flow)
+            val storedPasswordHash = userData["passwordHash"] as? String
+                ?: return Result.failure(Exception("Password tidak ditemukan"))
 
-                    Result.success(user)
-                }
-                "email" -> {
-                    Result.failure(Exception("Username ini terdaftar dengan email. Silakan login menggunakan email."))
-                }
-                else -> {
-                    Result.failure(Exception("Auth type tidak dikenal"))
-                }
-            }
+            // Sign in with email/password
+            val authResult = firebaseAuth.signInWithEmailAndPassword(storedEmail, storedPasswordHash).await()
+            val user = authResult.user ?: throw Exception("Login failed")
+
+            // Update preferences
+            val displayName = userData["displayName"] as? String ?: username
+            userPreferences.saveUserData(user.uid, username, displayName)
+
+            Result.success(user)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -176,18 +193,31 @@ class FirebaseAuthService @Inject constructor(
     suspend fun loginWithEmail(email: String, password: String): Result<FirebaseUser> {
         return try {
             val authResult = firebaseAuth.signInWithEmailAndPassword(email, password).await()
-            val user = authResult.user ?: throw Exception("Login gagal")
+            val user = authResult.user ?: throw Exception("Login failed")
 
-            // Load user profile and update preferences
-            val profileResult = getUserProfile()
-            if (profileResult.isSuccess) {
-                val profile = profileResult.getOrNull()
-                userPreferences.setUserId(user.uid)
-                userPreferences.setUserEmail(email)
-                userPreferences.setDisplayName(profile?.get("displayName") as? String ?: "User")
+            // Update preferences from Firestore profile
+            val userProfile = getUserProfileData(user.uid)
+            if (userProfile.isSuccess) {
+                val profileData = userProfile.getOrNull()
+                val username = profileData?.get("username") as? String
+                val displayName = profileData?.get("displayName") as? String ?: "Chaos Member"
+                userPreferences.saveUserData(user.uid, username, displayName)
             }
 
             Result.success(user)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Logout user
+     */
+    suspend fun logout(): Result<Unit> {
+        return try {
+            firebaseAuth.signOut()
+            userPreferences.clearUserData()
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -198,45 +228,33 @@ class FirebaseAuthService @Inject constructor(
      */
     private suspend fun createUserProfile(
         userId: String,
-        username: String,
+        username: String?,
         displayName: String,
         email: String?,
         authType: String
     ): Result<Unit> {
         return try {
-            val currentDate = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-
-            val userProfile = hashMapOf(
+            val userData = hashMapOf(
                 "userId" to userId,
                 "username" to username,
                 "displayName" to displayName,
                 "email" to email,
                 "authType" to authType,
-                "joinDate" to currentDate,
-                "lastLogin" to currentDate,
-                "chaosEntries" to 0,
-                "dayStreak" to 0,
-                "longestStreak" to 0,
-                "supportGiven" to 0,
-                "supportReceived" to 0,
+                "createdAt" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
                 "isActive" to true,
-                "profileVersion" to 1
+                "profilePicture" to null,
+                "bio" to "",
+                "chaosCount" to 0
             )
 
-            // Create user document
+            // Save password hash for username-based accounts
+            if (authType == "username" && email != null) {
+                userData["passwordHash"] = generateSecurePassword()
+            }
+
             firestore.collection("users")
                 .document(userId)
-                .set(userProfile)
-                .await()
-
-            // Create username lookup for quick availability checking
-            firestore.collection("usernames")
-                .document(username.lowercase())
-                .set(mapOf(
-                    "userId" to userId,
-                    "username" to username,
-                    "createdAt" to currentDate
-                ))
+                .set(userData)
                 .await()
 
             Result.success(Unit)
@@ -246,29 +264,19 @@ class FirebaseAuthService @Inject constructor(
     }
 
     /**
-     * Get user profile from Firestore
+     * Get user profile data from Firestore
      */
-    suspend fun getUserProfile(): Result<Map<String, Any>> {
+    suspend fun getUserProfileData(userId: String): Result<Map<String, Any>?> {
         return try {
-            val user = currentUser ?: throw Exception("User tidak login")
-
             val document = firestore.collection("users")
-                .document(user.uid)
+                .document(userId)
                 .get()
                 .await()
 
             if (document.exists()) {
-                val data = document.data ?: emptyMap()
-
-                // Update last login
-                firestore.collection("users")
-                    .document(user.uid)
-                    .update("lastLogin", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()))
-                    .await()
-
-                Result.success(data)
+                Result.success(document.data)
             } else {
-                Result.failure(Exception("Profil user tidak ditemukan"))
+                Result.failure(Exception("User profile not found"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -276,46 +284,50 @@ class FirebaseAuthService @Inject constructor(
     }
 
     /**
-     * Check if username is available
+     * Validate username format
      */
-    suspend fun checkUsernameAvailability(username: String): Boolean {
+    private fun validateUsername(username: String): Result<Unit> {
+        return when {
+            username.isBlank() -> Result.failure(Exception("Username tidak boleh kosong!"))
+            username.length < 3 -> Result.failure(Exception("Username minimal 3 karakter!"))
+            username.length > 20 -> Result.failure(Exception("Username maksimal 20 karakter!"))
+            !username.matches(Regex("^[a-zA-Z0-9_]+$")) ->
+                Result.failure(Exception("Username hanya boleh huruf, angka, dan underscore!"))
+            else -> Result.success(Unit)
+        }
+    }
+
+    /**
+     * Check username availability
+     */
+    private suspend fun checkUsernameAvailability(username: String): Boolean {
         return try {
-            val document = firestore.collection("usernames")
-                .document(username.lowercase())
+            val query = firestore.collection("users")
+                .whereEqualTo("username", username)
+                .limit(1)
                 .get()
                 .await()
 
-            !document.exists()
+            query.documents.isEmpty()
         } catch (e: Exception) {
-            false // Assume not available if error occurs
+            false
         }
     }
 
     /**
-     * Validate username according to Daily Chaos rules
+     * Check email availability
      */
-    private fun validateUsername(username: String): Result<Unit> {
+    private suspend fun checkEmailAvailability(email: String): Boolean {
         return try {
-            when {
-                username.isBlank() -> {
-                    Result.failure(Exception("Username tidak boleh kosong!"))
-                }
-                username.length < 3 -> {
-                    Result.failure(Exception("Username minimal 3 karakter! Contoh: 'Megumin'"))
-                }
-                username.length > 20 -> {
-                    Result.failure(Exception("Username maksimal 20 karakter! Singkat tapi berkesan!"))
-                }
-                !username.matches(Regex("^[a-zA-Z0-9_]+$")) -> {
-                    Result.failure(Exception("Username hanya boleh huruf, angka, dan underscore!"))
-                }
-                FORBIDDEN_USERNAMES.contains(username.lowercase()) -> {
-                    Result.failure(Exception("Username '$username' tidak diperbolehkan! Coba yang lebih kreatif!"))
-                }
-                else -> Result.success(Unit)
-            }
+            val query = firestore.collection("users")
+                .whereEqualTo("email", email)
+                .limit(1)
+                .get()
+                .await()
+
+            query.documents.isEmpty()
         } catch (e: Exception) {
-            Result.failure(e)
+            false
         }
     }
 
@@ -327,140 +339,12 @@ class FirebaseAuthService @Inject constructor(
     }
 
     /**
-     * Generate username from email
+     * Generate secure password for username-based accounts
      */
-    private fun generateUsernameFromEmail(email: String): String {
-        val localPart = email.substringBefore("@")
-        val cleanUsername = localPart.replace(Regex("[^a-zA-Z0-9]"), "")
-        return if (cleanUsername.length >= 3) cleanUsername else "user${System.currentTimeMillis()}"
-    }
-
-    /**
-     * Get suggested usernames if current choice is taken
-     * "Need backup names? We got you covered!"
-     */
-    fun getSuggestedUsernames(baseUsername: String): List<String> {
-        val suggestions = mutableListOf<String>()
-
-        // Generate variations
-        val suffixes = listOf("Hero", "Master", "Pro", "Star", "Legend", "Epic")
-        val numbers = listOf(123, 456, 789, 101, 2024)
-
-        suffixes.forEach { suffix ->
-            suggestions.add("${baseUsername}$suffix")
-        }
-
-        numbers.forEach { number ->
-            suggestions.add("${baseUsername}$number")
-        }
-
-        // KonoSuba inspired additions
-        val konoSubaSuffixes = listOf("Kazuma", "Aqua", "Megumin", "Darkness", "Adventurer", "Champion")
-        konoSubaSuffixes.forEach { suffix ->
-            suggestions.add("${baseUsername}$suffix")
-        }
-
-        return suggestions.take(6) // Return top 6 suggestions
-    }
-
-    /**
-     * Logout user
-     * "Time to leave the party... for now"
-     */
-    suspend fun logout(): Result<Unit> {
-        return try {
-            firebaseAuth.signOut()
-            userPreferences.clearUserPreferences()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * Delete user account and all data
-     * "Full party disbandment - use with caution!"
-     */
-    suspend fun deleteAccount(): Result<Unit> {
-        return try {
-            val user = currentUser ?: throw Exception("User tidak login")
-            val profile = getUserProfile().getOrThrow()
-            val username = profile["username"] as? String
-
-            // Delete user profile
-            firestore.collection("users")
-                .document(user.uid)
-                .delete()
-                .await()
-
-            // Delete username lookup if exists
-            if (username != null) {
-                firestore.collection("usernames")
-                    .document(username.lowercase())
-                    .delete()
-                    .await()
-            }
-
-            // Delete Firebase auth user
-            user.delete().await()
-
-            // Clear preferences
-            userPreferences.clearUserPreferences()
-
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * Check if current user is authenticated
-     */
-    fun isAuthenticated(): Boolean = currentUser != null
-
-    /**
-     * Update user stats (chaos entries, streaks, etc.)
-     */
-    suspend fun updateUserStats(
-        chaosEntries: Int? = null,
-        dayStreak: Int? = null,
-        supportGiven: Int? = null
-    ): Result<Unit> {
-        return try {
-            val user = currentUser ?: throw Exception("User tidak login")
-
-            val updates = mutableMapOf<String, Any>()
-            chaosEntries?.let { updates["chaosEntries"] = it }
-            dayStreak?.let {
-                updates["dayStreak"] = it
-                // Update longest streak if current is higher
-                val currentProfile = getUserProfile().getOrNull()
-                val currentLongest = (currentProfile?.get("longestStreak") as? Long)?.toInt() ?: 0
-                if (it > currentLongest) {
-                    updates["longestStreak"] = it
-                }
-            }
-            supportGiven?.let { updates["supportGiven"] = it }
-
-            if (updates.isNotEmpty()) {
-                firestore.collection("users")
-                    .document(user.uid)
-                    .update(updates)
-                    .await()
-            }
-
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    companion object {
-        private val FORBIDDEN_USERNAMES = setOf(
-            "admin", "administrator", "root", "system", "chaos", "dailychaos",
-            "moderator", "mod", "support", "help", "api", "null", "undefined",
-            "test", "demo", "example", "user", "username", "password",
-            "guest", "anonymous", "bot", "service", "official"
-        )
+    private fun generateSecurePassword(): String {
+        val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*"
+        return (1..16)
+            .map { chars.random() }
+            .joinToString("")
     }
 }

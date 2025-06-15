@@ -1,7 +1,7 @@
 // File: app/src/main/java/com/dailychaos/project/presentation/ui/screen/auth/profile/ProfileViewModel.kt
 package com.dailychaos.project.presentation.ui.screen.auth.profile
 
-import UserProfile
+import com.dailychaos.project.domain.model.UserProfile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
@@ -39,12 +39,13 @@ class ProfileViewModel @Inject constructor(
             )
 
             try {
-                // Get user profile from Firebase
+                // Get user profile from Firebase - FIX: getUserProfile method added
                 val result = firebaseAuthService.getUserProfile()
 
                 if (result.isSuccess) {
                     val profileData = result.getOrNull()
                     if (profileData != null) {
+                        // FIX: Proper type casting to Map<String, Any>
                         val userProfile = parseUserProfile(profileData)
                         _uiState.value = _uiState.value.copy(
                             userProfile = userProfile,
@@ -85,20 +86,33 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    // FIX: Safe type casting untuk Map<String, Any>
     private fun parseUserProfile(data: Map<String, Any>): UserProfile {
         return UserProfile(
             userId = data["userId"] as? String ?: "",
             username = data["username"] as? String ?: "Anonymous",
             displayName = data["displayName"] as? String ?: "Adventurer",
             email = data["email"] as? String,
-            chaosEntries = (data["chaosEntries"] as? Long)?.toInt() ?: 0,
-            dayStreak = (data["dayStreak"] as? Long)?.toInt() ?: 0,
-            supportGiven = (data["supportGiven"] as? Long)?.toInt() ?: 0,
+            chaosEntries = when (val entries = data["chaosEntries"]) {
+                is Long -> entries.toInt()
+                is Int -> entries
+                is String -> entries.toIntOrNull() ?: 0
+                else -> 0
+            },
+            dayStreak = when (val streak = data["dayStreak"]) {
+                is Long -> streak.toInt()
+                is Int -> streak
+                is String -> streak.toIntOrNull() ?: 0
+                else -> 0
+            },
+            supportGiven = when (val support = data["supportGiven"]) {
+                is Long -> support.toInt()
+                is Int -> support
+                is String -> support.toIntOrNull() ?: 0
+                else -> 0
+            },
             joinDate = data["joinDate"] as? String ?: "",
             authType = data["authType"] as? String ?: "username"
         )
     }
 }
-
-
-
