@@ -8,6 +8,8 @@ import com.dailychaos.project.preferences.UserPreferences
 import com.dailychaos.project.util.ValidationUtil
 import com.dailychaos.project.util.isValidEmail
 import com.dailychaos.project.util.isValidPassword
+import com.dailychaos.project.util.isValidUsernameFormat
+import com.dailychaos.project.util.getUsernameErrorMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -22,7 +24,8 @@ import javax.inject.Inject
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val firebaseAuthService: FirebaseAuthService,
-    private val userPreferences: UserPreferences
+    private val userPreferences: UserPreferences,
+    private val validationUtil: ValidationUtil
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -80,18 +83,38 @@ class LoginViewModel @Inject constructor(
     }
 
     private fun validateUsernameBasic(username: String): UsernameValidation {
-        val errorMessage = ValidationUtil.getUsernameErrorMessage(username)
+        // Use extension function from Extensions.kt
+        val errorMessage = username.getUsernameErrorMessage()
         return if (errorMessage == null) {
             UsernameValidation(true, "Username valid!")
         } else {
             UsernameValidation(
                 false,
                 errorMessage,
-                if (!ValidationUtil.isValidUsernameFormat(username)) {
-                    ValidationUtil.generateUsernameSuggestions(username)
+                if (!username.isValidUsernameFormat()) {
+                    generateUsernameSuggestions(username)
                 } else emptyList()
             )
         }
+    }
+
+    private fun generateUsernameSuggestions(baseUsername: String): List<String> {
+        val suggestions = mutableListOf<String>()
+        val randomNumbers = (100..999).shuffled().take(3)
+
+        randomNumbers.forEach { number ->
+            suggestions.add("${baseUsername}$number")
+        }
+
+        // Add some creative variations
+        val variations = listOf(
+            "${baseUsername}_chaos",
+            "${baseUsername}hero",
+            "chaos_$baseUsername"
+        )
+
+        suggestions.addAll(variations.take(2))
+        return suggestions.take(5)
     }
 
     private fun loginWithEmail() {
@@ -181,7 +204,7 @@ class LoginViewModel @Inject constructor(
                     userPreferences.setFirstLaunchCompleted()
                     _loginSuccessEvent.emit(Unit)
                 } else {
-                    val error = result.exceptionOrNull()?.message ?: "Anonymous login gagal"
+                    val error = result.exceptionOrNull()?.message ?: "Login anonim gagal"
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -193,7 +216,7 @@ class LoginViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = e.message ?: "Terjadi kesalahan saat login anonymous"
+                        error = e.message ?: "Terjadi kesalahan saat login anonim"
                     )
                 }
             }

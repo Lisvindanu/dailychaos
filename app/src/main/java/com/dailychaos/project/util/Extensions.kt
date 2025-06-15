@@ -335,6 +335,7 @@ fun String.getUsernameErrorMessage(): String? {
 
 /**
  * Generate username suggestions based on base name
+ * "KonoSuba-style creative suggestions!"
  */
 fun String.generateUsernameSuggestions(): List<String> {
     val suggestions = mutableListOf<String>()

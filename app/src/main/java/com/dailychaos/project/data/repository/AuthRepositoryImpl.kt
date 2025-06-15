@@ -1,6 +1,8 @@
 // File: app/src/main/java/com/dailychaos/project/data/repository/AuthRepositoryImpl.kt
 package com.dailychaos.project.data.repository
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
 import com.dailychaos.project.domain.model.AuthState
 import com.dailychaos.project.domain.model.User
@@ -28,6 +30,7 @@ class AuthRepositoryImpl @Inject constructor(
     private val validationUtil: ValidationUtil
 ) : AuthRepository {
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun getAuthState(): Flow<AuthState> = flow {
         emit(AuthState.Loading)
 
@@ -47,6 +50,7 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override suspend fun loginWithUsername(username: String): Result<User> {
         return try {
             val firebaseResult = firebaseAuthService.loginWithUsername(username)
@@ -73,6 +77,7 @@ class AuthRepositoryImpl @Inject constructor(
         return firebaseAuthService.logout()
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override suspend fun getCurrentUser(): User? {
         return try {
             val firebaseUser = firebaseAuthService.currentUser
@@ -129,6 +134,7 @@ class AuthRepositoryImpl @Inject constructor(
     /**
      * Map Firebase profile data to domain User model
      */
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun mapFirebaseProfileToUser(profile: Map<String, Any>): User {
         return User(
             id = profile["uid"] as? String ?: "",
