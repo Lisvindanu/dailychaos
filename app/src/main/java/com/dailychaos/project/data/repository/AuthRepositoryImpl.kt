@@ -73,6 +73,75 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
+    override suspend fun loginWithEmail(email: String, password: String): Result<User> {
+        return try {
+            val firebaseResult = firebaseAuthService.loginWithEmail(email, password)
+            if (firebaseResult.isSuccess) {
+                val firebaseUser = firebaseResult.getOrThrow()
+                val profileResult = firebaseAuthService.getUserProfile(firebaseUser.uid)
+
+                if (profileResult.isSuccess) {
+                    val profile = profileResult.getOrThrow()
+                    val user = mapFirebaseProfileToUser(profile)
+                    Result.success(user)
+                } else {
+                    Result.failure(profileResult.exceptionOrNull()!!)
+                }
+            } else {
+                Result.failure(firebaseResult.exceptionOrNull()!!)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    override suspend fun registerWithUsername(username: String, displayName: String): Result<User> {
+        return try {
+            val firebaseResult = firebaseAuthService.registerWithUsername(username, displayName)
+            if (firebaseResult.isSuccess) {
+                val firebaseUser = firebaseResult.getOrThrow()
+                val profileResult = firebaseAuthService.getUserProfile(firebaseUser.uid)
+
+                if (profileResult.isSuccess) {
+                    val profile = profileResult.getOrThrow()
+                    val user = mapFirebaseProfileToUser(profile)
+                    Result.success(user)
+                } else {
+                    Result.failure(profileResult.exceptionOrNull()!!)
+                }
+            } else {
+                Result.failure(firebaseResult.exceptionOrNull()!!)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    override suspend fun registerWithEmail(email: String, password: String, displayName: String): Result<User> {
+        return try {
+            val firebaseResult = firebaseAuthService.registerWithEmail(email, password, displayName)
+            if (firebaseResult.isSuccess) {
+                val firebaseUser = firebaseResult.getOrThrow()
+                val profileResult = firebaseAuthService.getUserProfile(firebaseUser.uid)
+
+                if (profileResult.isSuccess) {
+                    val profile = profileResult.getOrThrow()
+                    val user = mapFirebaseProfileToUser(profile)
+                    Result.success(user)
+                } else {
+                    Result.failure(profileResult.exceptionOrNull()!!)
+                }
+            } else {
+                Result.failure(firebaseResult.exceptionOrNull()!!)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override suspend fun logout(): Result<Unit> {
         return firebaseAuthService.logout()
     }
@@ -102,12 +171,23 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun validateUsername(username: String): UsernameValidation {
         return try {
-            // Use the validation from ValidationUtil first
-            val validationResult = validationUtil.validateUsername(username)
+            // Create a basic validation result first
+            val basicValidation = when {
+                username.isBlank() -> ValidationResult(false, "Username tidak boleh kosong!")
+                username.length < 3 -> ValidationResult(false, "Username minimal 3 karakter!")
+                username.length > 20 -> ValidationResult(false, "Username maksimal 20 karakter!")
+                !username.matches(Regex("^[a-zA-Z0-9_]+$")) -> ValidationResult(false, "Username hanya boleh huruf, angka, dan underscore!")
+                username.startsWith("_") || username.endsWith("_") -> ValidationResult(false, "Username tidak boleh dimulai atau diakhiri dengan underscore!")
+                else -> ValidationResult(true, null)
+            }
 
-            if (validationResult.isValid) {
-                // Username format is valid, return success
-                UsernameValidation(true, "Username valid!")
+            if (basicValidation.isValid) {
+                // Username format is valid, return success with proper domain model
+                UsernameValidation(
+                    isValid = true,
+                    message = "Username valid!",
+                    suggestions = emptyList()
+                )
             } else {
                 // Username has errors, get suggestions if format is invalid
                 val suggestions = if (!username.isValidUsernameFormat()) {
@@ -116,14 +196,20 @@ class AuthRepositoryImpl @Inject constructor(
                     emptyList()
                 }
 
+                // Return with proper domain model
                 UsernameValidation(
-                    false,
-                    validationResult.errorMessage ?: "Username tidak valid",
-                    suggestions
+                    isValid = false,
+                    message = basicValidation.errorMessage ?: "Username tidak valid",
+                    suggestions = suggestions
                 )
             }
         } catch (e: Exception) {
-            UsernameValidation(false, "Error validating username: ${e.message}")
+            // Error case with proper domain model
+            UsernameValidation(
+                isValid = false,
+                message = "Error validating username: ${e.message}",
+                suggestions = emptyList()
+            )
         }
     }
 
@@ -133,44 +219,83 @@ class AuthRepositoryImpl @Inject constructor(
 
     /**
      * Map Firebase profile data to domain User model
+     * FIX: Using correct property names that match User data class
      */
     @RequiresApi(Build.VERSION_CODES.O)
     private fun mapFirebaseProfileToUser(profile: Map<String, Any>): User {
         return User(
-            id = profile["uid"] as? String ?: "",
+            id = profile["userId"] as? String ?: "",
             email = profile["email"] as? String,
             anonymousUsername = profile["username"] as? String ?: "",
-            isAnonymous = profile["isAnonymous"] as? Boolean ?: true,
-            chaosEntriesCount = (profile["chaosEntriesCount"] as? Long)?.toInt() ?: 0,
-            supportGivenCount = (profile["totalSupportGiven"] as? Long)?.toInt() ?: 0,
-            supportReceivedCount = (profile["totalSupportReceived"] as? Long)?.toInt() ?: 0,
-            streakDays = (profile["streakDays"] as? Long)?.toInt() ?: 0,
-            joinedAt = (profile["createdAt"] as? com.google.firebase.Timestamp)?.toDate()?.toInstant()?.toKotlinInstant()
-                ?: Instant.DISTANT_PAST,
-            lastActiveAt = (profile["lastActiveAt"] as? com.google.firebase.Timestamp)?.toDate()?.toInstant()?.toKotlinInstant()
-                ?: Instant.DISTANT_PAST,
-            settings = mapToUserSettings(profile["settings"] as? Map<String, Any> ?: emptyMap())
+            isAnonymous = profile["authType"] as? String == "username",
+            chaosEntriesCount = when (val count = profile["chaosEntries"]) {
+                is Long -> count.toInt()
+                is Int -> count
+                is Double -> count.toInt()
+                is String -> count.toIntOrNull() ?: 0
+                else -> 0
+            },
+            supportGivenCount = when (val count = profile["supportGiven"]) {
+                is Long -> count.toInt()
+                is Int -> count
+                is Double -> count.toInt()
+                is String -> count.toIntOrNull() ?: 0
+                else -> 0
+            },
+            supportReceivedCount = when (val count = profile["supportReceived"]) {
+                is Long -> count.toInt()
+                is Int -> count
+                is Double -> count.toInt()
+                is String -> count.toIntOrNull() ?: 0
+                else -> 0
+            },
+            streakDays = when (val streak = profile["dayStreak"]) {
+                is Long -> streak.toInt()
+                is Int -> streak
+                is Double -> streak.toInt()
+                is String -> streak.toIntOrNull() ?: 0
+                else -> 0
+            },
+            joinedAt = (profile["joinDate"] as? String)?.let { dateString ->
+                try {
+                    // Convert Firebase date string to Kotlin Instant
+                    val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                    java.time.LocalDateTime.parse(dateString, formatter)
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toInstant()
+                        .toKotlinInstant()
+                } catch (e: Exception) {
+                    kotlinx.datetime.Clock.System.now()
+                }
+            } ?: kotlinx.datetime.Clock.System.now(),
+            lastActiveAt = (profile["lastLoginDate"] as? String)?.let { dateString ->
+                try {
+                    val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                    java.time.LocalDateTime.parse(dateString, formatter)
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toInstant()
+                        .toKotlinInstant()
+                } catch (e: Exception) {
+                    kotlinx.datetime.Clock.System.now()
+                }
+            } ?: kotlinx.datetime.Clock.System.now(),
+            settings = UserSettings(
+                themeMode = ThemeMode.SYSTEM,
+                notificationsEnabled = true,
+                dailyReminderTime = null,
+                shareByDefault = false,
+                showChaosLevel = true,
+                konosubaQuotesEnabled = true,
+                anonymousMode = profile["authType"] as? String == "username"
+            )
         )
     }
 
     /**
-     * Map Firebase settings to UserSettings model
+     * Simple validation result for internal use
      */
-    private fun mapToUserSettings(settingsMap: Map<String, Any>): UserSettings {
-        return UserSettings(
-            themeMode = try {
-                ThemeMode.valueOf(
-                    (settingsMap["theme"] as? String ?: "SYSTEM").uppercase()
-                )
-            } catch (e: IllegalArgumentException) {
-                ThemeMode.SYSTEM
-            },
-            notificationsEnabled = settingsMap["notificationsEnabled"] as? Boolean ?: true,
-            dailyReminderTime = settingsMap["reminderTime"] as? String,
-            shareByDefault = settingsMap["shareByDefault"] as? Boolean ?: false,
-            showChaosLevel = settingsMap["showChaosLevel"] as? Boolean ?: true,
-            konosubaQuotesEnabled = settingsMap["konoSubaQuotesEnabled"] as? Boolean ?: true,
-            anonymousMode = settingsMap["anonymousMode"] as? Boolean ?: true
-        )
-    }
+    private data class ValidationResult(
+        val isValid: Boolean,
+        val errorMessage: String? = null
+    )
 }

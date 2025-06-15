@@ -5,7 +5,6 @@ import com.dailychaos.project.domain.model.UserProfile
 
 /**
  * Profile Screen UI State
- *
  * "State management untuk profile adventurer"
  */
 data class ProfileUiState(

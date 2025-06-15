@@ -1,11 +1,10 @@
 // File: app/src/main/java/com/dailychaos/project/presentation/ui/screen/auth/profile/ProfileViewModel.kt
 package com.dailychaos.project.presentation.ui.screen.auth.profile
 
-import com.dailychaos.project.domain.model.UserProfile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
-
+import com.dailychaos.project.domain.model.UserProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,13 +38,13 @@ class ProfileViewModel @Inject constructor(
             )
 
             try {
-                // Get user profile from Firebase - FIX: getUserProfile method added
+                // Get user profile from Firebase
                 val result = firebaseAuthService.getUserProfile()
 
                 if (result.isSuccess) {
                     val profileData = result.getOrNull()
                     if (profileData != null) {
-                        // FIX: Proper type casting to Map<String, Any>
+                        // Fix: Properly cast and handle the Map<String, Any> type
                         val userProfile = parseUserProfile(profileData)
                         _uiState.value = _uiState.value.copy(
                             userProfile = userProfile,
@@ -86,33 +85,52 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    // FIX: Safe type casting untuk Map<String, Any>
+    /**
+     * Parse user profile data from Firebase with safe type casting
+     * Fix: Handle different data types that may come from Firebase
+     */
     private fun parseUserProfile(data: Map<String, Any>): UserProfile {
         return UserProfile(
             userId = data["userId"] as? String ?: "",
-            username = data["username"] as? String ?: "Anonymous",
+            username = data["username"] as? String,
             displayName = data["displayName"] as? String ?: "Adventurer",
             email = data["email"] as? String,
             chaosEntries = when (val entries = data["chaosEntries"]) {
                 is Long -> entries.toInt()
                 is Int -> entries
+                is Double -> entries.toInt()
                 is String -> entries.toIntOrNull() ?: 0
                 else -> 0
             },
             dayStreak = when (val streak = data["dayStreak"]) {
                 is Long -> streak.toInt()
                 is Int -> streak
+                is Double -> streak.toInt()
                 is String -> streak.toIntOrNull() ?: 0
                 else -> 0
             },
             supportGiven = when (val support = data["supportGiven"]) {
                 is Long -> support.toInt()
                 is Int -> support
+                is Double -> support.toInt()
                 is String -> support.toIntOrNull() ?: 0
                 else -> 0
             },
             joinDate = data["joinDate"] as? String ?: "",
-            authType = data["authType"] as? String ?: "username"
+            authType = data["authType"] as? String ?: "username",
+            profilePicture = data["profilePicture"] as? String,
+            bio = data["bio"] as? String ?: "",
+            chaosLevel = when (val level = data["chaosLevel"]) {
+                is Long -> level.toInt()
+                is Int -> level
+                is Double -> level.toInt()
+                is String -> level.toIntOrNull() ?: 1
+                else -> 1
+            },
+            partyRole = data["partyRole"] as? String ?: "Newbie Adventurer",
+            isActive = data["isActive"] as? Boolean ?: true,
+            lastLoginDate = data["lastLoginDate"] as? String,
+            achievements = (data["achievements"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
         )
     }
 }

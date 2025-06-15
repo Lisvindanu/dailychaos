@@ -11,13 +11,24 @@ import kotlinx.coroutines.flow.Flow
  * "Define the party registration rules!"
  */
 interface AuthRepository {
+    // Auth state management
     fun getAuthState(): Flow<AuthState>
-    suspend fun loginWithUsername(username: String): Result<User>
-    suspend fun logout(): Result<Unit>
+    fun isAuthenticated(): Boolean
     suspend fun getCurrentUser(): User?
+
+    // Login methods
+    suspend fun loginWithUsername(username: String): Result<User>
+    suspend fun loginWithEmail(email: String, password: String): Result<User>
+
+    // Registration methods
+    suspend fun registerWithUsername(username: String, displayName: String): Result<User>
+    suspend fun registerWithEmail(email: String, password: String, displayName: String): Result<User>
+
+    // Account management
+    suspend fun logout(): Result<Unit>
     suspend fun updateUserProfile(updates: Map<String, Any>): Result<Unit>
     suspend fun deleteAccount(): Result<Unit>
-    suspend fun validateUsername(username: String): UsernameValidation
-    fun isAuthenticated(): Boolean
-}
 
+    // Validation
+    suspend fun validateUsername(username: String): UsernameValidation
+}

@@ -1,10 +1,8 @@
 // File: app/src/main/java/com/dailychaos/project/util/ValidationUtil.kt
-// Additional methods untuk validasi registrasi
-
 package com.dailychaos.project.util
 
 import android.util.Patterns
-import java.util.regex.Pattern
+import com.dailychaos.project.domain.model.UsernameValidation
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -52,38 +50,50 @@ class ValidationUtil @Inject constructor() {
 
     /**
      * Validate username according to Daily Chaos rules
+     * Keep errorMessage but return domain model UsernameValidation
      */
     fun validateUsername(username: String): UsernameValidation {
         return when {
             username.isBlank() -> UsernameValidation(
                 isValid = false,
-                errorMessage = "Username tidak boleh kosong!"
+                message = "Username tidak boleh kosong!",
+                suggestions = emptyList()
             )
             username.length < 3 -> UsernameValidation(
                 isValid = false,
-                errorMessage = "Username minimal 3 karakter! Contoh: 'Megumin'"
+                message = "Username minimal 3 karakter! Contoh: 'Megumin'",
+                suggestions = username.generateUsernameSuggestions()
             )
             username.length > 20 -> UsernameValidation(
                 isValid = false,
-                errorMessage = "Username maksimal 20 karakter! Singkat tapi berkesan!"
+                message = "Username maksimal 20 karakter! Singkat tapi berkesan!",
+                suggestions = username.generateUsernameSuggestions()
             )
             !username.matches(Regex("^[a-zA-Z0-9_]+$")) -> UsernameValidation(
                 isValid = false,
-                errorMessage = "Username hanya boleh huruf, angka, dan underscore! Contoh: 'kazuma_hero'"
+                message = "Username hanya boleh huruf, angka, dan underscore! Contoh: 'kazuma_hero'",
+                suggestions = username.generateUsernameSuggestions()
             )
             username.startsWith("_") || username.endsWith("_") -> UsernameValidation(
                 isValid = false,
-                errorMessage = "Username tidak boleh dimulai atau diakhiri dengan underscore!"
+                message = "Username tidak boleh dimulai atau diakhiri dengan underscore!",
+                suggestions = username.generateUsernameSuggestions()
             )
             username.contains("__") -> UsernameValidation(
                 isValid = false,
-                errorMessage = "Username tidak boleh ada double underscore!"
+                message = "Username tidak boleh ada double underscore!",
+                suggestions = username.generateUsernameSuggestions()
             )
             username.lowercase() in FORBIDDEN_USERNAMES -> UsernameValidation(
                 isValid = false,
-                errorMessage = "Username '$username' tidak boleh digunakan! Coba yang lain."
+                message = "Username '$username' tidak boleh digunakan! Coba yang lain.",
+                suggestions = username.generateUsernameSuggestions()
             )
-            else -> UsernameValidation(isValid = true)
+            else -> UsernameValidation(
+                isValid = true,
+                message = "Username tersedia!",
+                suggestions = emptyList()
+            )
         }
     }
 
@@ -141,16 +151,17 @@ class ValidationUtil @Inject constructor() {
 
 /**
  * Data classes for validation results
+ * Keep local ValidationResult classes, but use domain UsernameValidation
  */
+data class ValidationResult(
+    val isValid: Boolean,
+    val errorMessage: String? = null
+)
+
 data class PasswordValidation(
     val isValid: Boolean,
     val errorMessage: String? = null,
     val strength: PasswordStrength = PasswordStrength.WEAK
-)
-
-data class UsernameValidation(
-    val isValid: Boolean,
-    val errorMessage: String? = null
 )
 
 data class DisplayNameValidation(
