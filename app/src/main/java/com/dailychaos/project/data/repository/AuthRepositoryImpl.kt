@@ -5,9 +5,12 @@ import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
 import com.dailychaos.project.domain.model.AuthState
 import com.dailychaos.project.domain.model.User
 import com.dailychaos.project.domain.model.UserSettings
+import com.dailychaos.project.domain.model.ThemeMode
 import com.dailychaos.project.domain.model.UsernameValidation
 import com.dailychaos.project.domain.repository.AuthRepository
 import com.dailychaos.project.util.ValidationUtil
+import com.dailychaos.project.util.isValidUsernameFormat
+import com.dailychaos.project.util.generateUsernameSuggestions
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.datetime.Instant
@@ -21,7 +24,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
-    private val firebaseAuthService: FirebaseAuthService
+    private val firebaseAuthService: FirebaseAuthService,
+    private val validationUtil: ValidationUtil
 ) : AuthRepository {
 
     override fun getAuthState(): Flow<AuthState> = flow {
@@ -93,16 +97,24 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun validateUsername(username: String): UsernameValidation {
         return try {
-            val errorMessage = ValidationUtil.getUsernameErrorMessage(username)
-            if (errorMessage == null) {
+            // Use the validation from ValidationUtil first
+            val validationResult = validationUtil.validateUsername(username)
+
+            if (validationResult.isValid) {
+                // Username format is valid, return success
                 UsernameValidation(true, "Username valid!")
             } else {
+                // Username has errors, get suggestions if format is invalid
+                val suggestions = if (!username.isValidUsernameFormat()) {
+                    username.generateUsernameSuggestions()
+                } else {
+                    emptyList()
+                }
+
                 UsernameValidation(
                     false,
-                    errorMessage,
-                    if (!ValidationUtil.isValidUsernameFormat(username)) {
-                        ValidationUtil.generateUsernameSuggestions(username)
-                    } else emptyList()
+                    validationResult.errorMessage ?: "Username tidak valid",
+                    suggestions
                 )
             }
         } catch (e: Exception) {
@@ -140,11 +152,15 @@ class AuthRepositoryImpl @Inject constructor(
      */
     private fun mapToUserSettings(settingsMap: Map<String, Any>): UserSettings {
         return UserSettings(
-            themeMode = com.dailychaos.project.domain.model.ThemeMode.valueOf(
-                settingsMap["theme"] as? String ?: "SYSTEM"
-            ),
+            themeMode = try {
+                ThemeMode.valueOf(
+                    (settingsMap["theme"] as? String ?: "SYSTEM").uppercase()
+                )
+            } catch (e: IllegalArgumentException) {
+                ThemeMode.SYSTEM
+            },
             notificationsEnabled = settingsMap["notificationsEnabled"] as? Boolean ?: true,
-            dailyReminderTime = settingsMap["reminderTime"] as? String ?: "20:00",
+            dailyReminderTime = settingsMap["reminderTime"] as? String,
             shareByDefault = settingsMap["shareByDefault"] as? Boolean ?: false,
             showChaosLevel = settingsMap["showChaosLevel"] as? Boolean ?: true,
             konosubaQuotesEnabled = settingsMap["konoSubaQuotesEnabled"] as? Boolean ?: true,

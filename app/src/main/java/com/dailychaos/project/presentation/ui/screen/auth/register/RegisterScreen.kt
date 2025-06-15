@@ -1,16 +1,15 @@
-@Composable
-private fun EmailRegisterForm(
-    email: String,
-    password: String,
-    confirm// File: app/src/main/java/com/dailychaos/project/presentation/ui/screen/auth/register/RegisterScreen.kt
-    package com.dailychaos.project.presentation.ui.screen.auth.register
+// File: app/src/main/java/com/dailychaos/project/presentation/ui/screen/auth/register/RegisterScreen.kt
+package com.dailychaos.project.presentation.ui.screen.auth.register
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -23,9 +22,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -36,9 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dailychaos.project.R
 import com.dailychaos.project.presentation.ui.theme.ChaosColors
-import com.dailychaos.project.presentation.ui.theme.ChaosTypography
 import com.dailychaos.project.presentation.ui.component.PasswordStrengthIndicator
 import com.dailychaos.project.util.PasswordStrength
 
@@ -168,30 +165,6 @@ fun RegisterScreen(
     }
 }
 
-/**
- * Calculate password strength for UI display
- */
-private fun calculatePasswordStrength(password: String): PasswordStrength {
-    var score = 0
-
-    // Length bonus
-    if (password.length >= 8) score += 1
-    if (password.length >= 12) score += 1
-
-    // Character variety
-    if (password.any { it.isLowerCase() }) score += 1
-    if (password.any { it.isUpperCase() }) score += 1
-    if (password.any { it.isDigit() }) score += 1
-    if (password.any { "!@#$%^&*()_+-=[]{}|;:,.<>?".contains(it) }) score += 1
-
-    return when (score) {
-        in 0..2 -> PasswordStrength.WEAK
-        in 3..4 -> PasswordStrength.MEDIUM
-        in 5..6 -> PasswordStrength.STRONG
-        else -> PasswordStrength.VERY_STRONG
-    }
-}
-
 @Composable
 private fun RegisterHeader() {
     Column(
@@ -199,7 +172,7 @@ private fun RegisterHeader() {
     ) {
         Text(
             text = "Join the Party! 🎉",
-            style = ChaosTypography.headlineLarge.copy(
+            style = MaterialTheme.typography.headlineLarge.copy(
                 fontWeight = FontWeight.Bold,
                 color = ChaosColors.primary
             )
@@ -207,7 +180,7 @@ private fun RegisterHeader() {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "Buat akun dan mulai petualangan chaos-mu bersama party yang solid!",
-            style = ChaosTypography.bodyLarge,
+            style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
         )
@@ -264,7 +237,9 @@ private fun RegisterModeButton(
             containerColor = if (isSelected) ChaosColors.primary else Color.Transparent,
             contentColor = if (isSelected) ChaosColors.onPrimary else MaterialTheme.colorScheme.onSurface
         ),
-        elevation = if (isSelected) ButtonDefaults.buttonElevation(defaultElevation = 4.dp) else ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = if (isSelected) 4.dp else 0.dp
+        ),
         shape = RoundedCornerShape(12.dp)
     ) {
         Icon(
@@ -294,7 +269,7 @@ private fun UsernameRegisterForm(
     onDisplayNameChanged: (String) -> Unit,
     onSuggestionClicked: (String) -> Unit,
     onRegister: () -> Unit,
-    focusManager: androidx.compose.ui.platform.FocusManager
+    focusManager: FocusManager
 ) {
     Column(
         modifier = Modifier.fillMaxWidth()
@@ -303,8 +278,8 @@ private fun UsernameRegisterForm(
         OutlinedTextField(
             value = displayName,
             onValueChange = onDisplayNameChanged,
-            label = { Text("Display Name (Opsional)") },
-            placeholder = { Text("Contoh: Kazuma si Penyihir") },
+            label = { Text("Display Name (Optional)") },
+            placeholder = { Text("Contoh: Kazuma si Petualang") },
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Badge,
@@ -359,20 +334,29 @@ private fun UsernameRegisterForm(
         )
 
         // Username Suggestions
-        if (suggestions.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Saran username:",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            suggestions.take(3).forEach { suggestion ->
-                SuggestionChip(
-                    onClick = { onSuggestionClicked(suggestion) },
-                    label = { Text(suggestion) },
-                    modifier = Modifier.padding(end = 8.dp, bottom = 4.dp)
+        AnimatedVisibility(
+            visible = suggestions.isNotEmpty(),
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Saran username:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(suggestions) { suggestion ->
+                        SuggestionChip(
+                            onClick = { onSuggestionClicked(suggestion) },
+                            label = { Text(suggestion) }
+                        )
+                    }
+                }
             }
         }
 
@@ -381,24 +365,26 @@ private fun UsernameRegisterForm(
         // Register Button
         Button(
             onClick = onRegister,
-            enabled = !isLoading && isUsernameValid,
-            modifier = Modifier.fillMaxWidth(),
+            enabled = isUsernameValid && !isLoading,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = ChaosColors.primary,
-                contentColor = ChaosColors.onPrimary
+                containerColor = ChaosColors.primary
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
-                    color = ChaosColors.onPrimary,
-                    strokeWidth = 2.dp
+                    strokeWidth = 2.dp,
+                    color = ChaosColors.onPrimary
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.PersonAdd,
-                    contentDescription = null
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
@@ -428,7 +414,7 @@ private fun EmailRegisterForm(
     onTogglePasswordVisibility: () -> Unit,
     onToggleConfirmPasswordVisibility: () -> Unit,
     onRegister: () -> Unit,
-    focusManager: androidx.compose.ui.platform.FocusManager
+    focusManager: FocusManager
 ) {
     Column(
         modifier = Modifier.fillMaxWidth()
@@ -437,8 +423,8 @@ private fun EmailRegisterForm(
         OutlinedTextField(
             value = displayName,
             onValueChange = onDisplayNameChanged,
-            label = { Text("Display Name (Opsional)") },
-            placeholder = { Text("Contoh: Aqua si Dewi Air") },
+            label = { Text("Display Name (Optional)") },
+            placeholder = { Text("Contoh: Kazuma si Petualang") },
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Badge,
@@ -462,7 +448,7 @@ private fun EmailRegisterForm(
             value = email,
             onValueChange = onEmailChanged,
             label = { Text("Email") },
-            placeholder = { Text("your.email@example.com") },
+            placeholder = { Text("contoh@email.com") },
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Email,
@@ -563,24 +549,26 @@ private fun EmailRegisterForm(
         // Register Button
         Button(
             onClick = onRegister,
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
+            enabled = email.isNotEmpty() && password.isNotEmpty() && confirmPassword.isNotEmpty() && !isLoading,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = ChaosColors.primary,
-                contentColor = ChaosColors.onPrimary
+                containerColor = ChaosColors.primary
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
-                    color = ChaosColors.onPrimary,
-                    strokeWidth = 2.dp
+                    strokeWidth = 2.dp,
+                    color = ChaosColors.onPrimary
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.PersonAdd,
-                    contentDescription = null
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
@@ -598,26 +586,56 @@ private fun EmailRegisterForm(
 private fun LoginRedirectSection(
     onNavigateToLogin: () -> Unit
 ) {
-    Row(
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "Sudah punya akun?",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        HorizontalDivider(
+            modifier = Modifier.fillMaxWidth(0.8f),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
         )
-        Spacer(modifier = Modifier.width(4.dp))
-        TextButton(
-            onClick = onNavigateToLogin
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Login disini",
+                text = "Sudah punya akun? ",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            )
+            Text(
+                text = "Login",
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = ChaosColors.primary
                 ),
-                color = ChaosColors.primary
+                modifier = Modifier.clickable { onNavigateToLogin() }
             )
         }
+    }
+}
+
+/**
+ * Calculate password strength for UI display
+ */
+private fun calculatePasswordStrength(password: String): PasswordStrength {
+    var score = 0
+
+    // Length bonus
+    if (password.length >= 8) score += 1
+    if (password.length >= 12) score += 1
+
+    // Character variety
+    if (password.any { it.isLowerCase() }) score += 1
+    if (password.any { it.isUpperCase() }) score += 1
+    if (password.any { it.isDigit() }) score += 1
+    if (password.any { "!@#$%^&*()_+-=[]{}|;:,.<>?".contains(it) }) score += 1
+
+    return when (score) {
+        in 0..2 -> PasswordStrength.WEAK
+        in 3..4 -> PasswordStrength.MEDIUM
+        in 5..6 -> PasswordStrength.STRONG
+        else -> PasswordStrength.VERY_STRONG
     }
 }

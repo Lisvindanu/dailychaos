@@ -1,3 +1,4 @@
+// File: app/src/main/java/com/dailychaos/project/preferences/UserPreferences.kt
 package com.dailychaos.project.preferences
 
 import androidx.datastore.core.DataStore
@@ -34,6 +35,13 @@ class UserPreferences @Inject constructor(
         private val USER_ID = stringPreferencesKey("user_id")
         private val LAST_SYNC_TIME = longPreferencesKey("last_sync_time")
         private val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+
+        // Additional keys for registration
+        private val USER_EMAIL = stringPreferencesKey("user_email")
+        private val DISPLAY_NAME = stringPreferencesKey("display_name")
+        private val AUTH_TYPE = stringPreferencesKey("auth_type")
+        private val CHAOS_LEVEL = intPreferencesKey("chaos_level")
+        private val PARTY_ROLE = stringPreferencesKey("party_role")
     }
 
     // ================================
@@ -67,7 +75,7 @@ class UserPreferences @Inject constructor(
             }
         }
         .map { preferences ->
-            val themeName = preferences[THEME_MODE] ?: ThemeMode.SYSTEM.name
+            val themeName = preferences[THEME_MODE] ?: "SYSTEM"
             try {
                 ThemeMode.valueOf(themeName)
             } catch (e: IllegalArgumentException) {
@@ -196,6 +204,81 @@ class UserPreferences @Inject constructor(
         }
 
     /**
+     * Get user email
+     */
+    val userEmail: Flow<String?> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { preferences ->
+            preferences[USER_EMAIL]
+        }
+
+    /**
+     * Get display name
+     */
+    val displayName: Flow<String?> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { preferences ->
+            preferences[DISPLAY_NAME]
+        }
+
+    /**
+     * Get authentication type
+     */
+    val authType: Flow<String?> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { preferences ->
+            preferences[AUTH_TYPE]
+        }
+
+    /**
+     * Get chaos level
+     */
+    val chaosLevel: Flow<Int> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { preferences ->
+            preferences[CHAOS_LEVEL] ?: 1
+        }
+
+    /**
+     * Get party role
+     */
+    val partyRole: Flow<String> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { preferences ->
+            preferences[PARTY_ROLE] ?: "Newbie Adventurer"
+        }
+
+    /**
      * Get last sync time
      */
     val lastSyncTime: Flow<Long> = dataStore.data
@@ -223,6 +306,25 @@ class UserPreferences @Inject constructor(
         }
         .map { preferences ->
             preferences[ONBOARDING_COMPLETED] ?: false
+        }
+
+    /**
+     * Check if user profile is complete
+     */
+    val isProfileComplete: Flow<Boolean> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { preferences ->
+            val hasUserId = !preferences[USER_ID].isNullOrBlank()
+            val hasDisplayName = !preferences[DISPLAY_NAME].isNullOrBlank()
+            val hasAuthType = !preferences[AUTH_TYPE].isNullOrBlank()
+
+            hasUserId && hasDisplayName && hasAuthType
         }
 
     // ================================
@@ -328,6 +430,51 @@ class UserPreferences @Inject constructor(
     }
 
     /**
+     * Set user email
+     */
+    suspend fun setUserEmail(email: String) {
+        dataStore.edit { preferences ->
+            preferences[USER_EMAIL] = email
+        }
+    }
+
+    /**
+     * Set display name
+     */
+    suspend fun setDisplayName(displayName: String) {
+        dataStore.edit { preferences ->
+            preferences[DISPLAY_NAME] = displayName
+        }
+    }
+
+    /**
+     * Set authentication type (username, email, anonymous)
+     */
+    suspend fun setAuthType(authType: String) {
+        dataStore.edit { preferences ->
+            preferences[AUTH_TYPE] = authType
+        }
+    }
+
+    /**
+     * Set chaos level
+     */
+    suspend fun setChaosLevel(level: Int) {
+        dataStore.edit { preferences ->
+            preferences[CHAOS_LEVEL] = level
+        }
+    }
+
+    /**
+     * Set party role
+     */
+    suspend fun setPartyRole(role: String) {
+        dataStore.edit { preferences ->
+            preferences[PARTY_ROLE] = role
+        }
+    }
+
+    /**
      * Update last sync time
      */
     suspend fun updateLastSyncTime(timestamp: Long) {
@@ -345,6 +492,10 @@ class UserPreferences @Inject constructor(
         }
     }
 
+    // ================================
+    // CLEAR PREFERENCES
+    // ================================
+
     /**
      * Clear all preferences (logout)
      */
@@ -360,129 +511,21 @@ class UserPreferences @Inject constructor(
     suspend fun clearUserPreferences() {
         dataStore.edit { preferences ->
             preferences.remove(USER_ID)
+            preferences.remove(USER_EMAIL)
             preferences.remove(ANONYMOUS_USERNAME)
+            preferences.remove(DISPLAY_NAME)
+            preferences.remove(AUTH_TYPE)
+            preferences.remove(CHAOS_LEVEL)
+            preferences.remove(PARTY_ROLE)
             preferences.remove(LAST_SYNC_TIME)
             // Keep theme, notifications, and other app settings
         }
-    }
-
-    // File: app/src/main/java/com/dailychaos/project/preferences/UserPreferences.kt
-// Additional methods untuk registrasi (tambahkan ke existing UserPreferences class)
-
-    /**
-     * Set user email
-     */
-    suspend fun setUserEmail(email: String) {
-        dataStore.edit { preferences ->
-            preferences[PreferencesKeys.USER_EMAIL] = email
-        }
-    }
-
-    /**
-     * Get user email
-     */
-    val userEmail: Flow<String?> = dataStore.data.map { preferences ->
-        preferences[PreferencesKeys.USER_EMAIL]
-    }
-
-    /**
-     * Set display name
-     */
-    suspend fun setDisplayName(displayName: String) {
-        dataStore.edit { preferences ->
-            preferences[PreferencesKeys.DISPLAY_NAME] = displayName
-        }
-    }
-
-    /**
-     * Get display name
-     */
-    val displayName: Flow<String?> = dataStore.data.map { preferences ->
-        preferences[PreferencesKeys.DISPLAY_NAME]
-    }
-
-    /**
-     * Set authentication type (username, email, anonymous)
-     */
-    suspend fun setAuthType(authType: String) {
-        dataStore.edit { preferences ->
-            preferences[PreferencesKeys.AUTH_TYPE] = authType
-        }
-    }
-
-    /**
-     * Get authentication type
-     */
-    val authType: Flow<String?> = dataStore.data.map { preferences ->
-        preferences[PreferencesKeys.AUTH_TYPE]
-    }
-
-    /**
-     * Set chaos level
-     */
-    suspend fun setChaosLevel(level: Int) {
-        dataStore.edit { preferences ->
-            preferences[PreferencesKeys.CHAOS_LEVEL] = level
-        }
-    }
-
-    /**
-     * Get chaos level
-     */
-    val chaosLevel: Flow<Int> = dataStore.data.map { preferences ->
-        preferences[PreferencesKeys.CHAOS_LEVEL] ?: 1
-    }
-
-    /**
-     * Set party role
-     */
-    suspend fun setPartyRole(role: String) {
-        dataStore.edit { preferences ->
-            preferences[PreferencesKeys.PARTY_ROLE] = role
-        }
-    }
-
-    /**
-     * Get party role
-     */
-    val partyRole: Flow<String> = dataStore.data.map { preferences ->
-        preferences[PreferencesKeys.PARTY_ROLE] ?: "Newbie Adventurer"
     }
 
     /**
      * Clear all user data (for logout)
      */
     suspend fun clearUserData() {
-        dataStore.edit { preferences ->
-            preferences.remove(PreferencesKeys.USER_ID)
-            preferences.remove(PreferencesKeys.USER_EMAIL)
-            preferences.remove(PreferencesKeys.ANONYMOUS_USERNAME)
-            preferences.remove(PreferencesKeys.DISPLAY_NAME)
-            preferences.remove(PreferencesKeys.AUTH_TYPE)
-            preferences.remove(PreferencesKeys.CHAOS_LEVEL)
-            preferences.remove(PreferencesKeys.PARTY_ROLE)
-        }
-    }
-
-    /**
-     * Check if user profile is complete
-     */
-    val isProfileComplete: Flow<Boolean> = dataStore.data.map { preferences ->
-        val hasUserId = !preferences[PreferencesKeys.USER_ID].isNullOrBlank()
-        val hasDisplayName = !preferences[PreferencesKeys.DISPLAY_NAME].isNullOrBlank()
-        val hasAuthType = !preferences[PreferencesKeys.AUTH_TYPE].isNullOrBlank()
-
-        hasUserId && hasDisplayName && hasAuthType
-    }
-
-    // Additional PreferencesKeys (tambahkan ke existing PreferencesKeys object)
-    object PreferencesKeys {
-        // ... existing keys ...
-
-        val USER_EMAIL = stringPreferencesKey("user_email")
-        val DISPLAY_NAME = stringPreferencesKey("display_name")
-        val AUTH_TYPE = stringPreferencesKey("auth_type")
-        val CHAOS_LEVEL = intPreferencesKey("chaos_level")
-        val PARTY_ROLE = stringPreferencesKey("party_role")
+        clearUserPreferences()
     }
 }
