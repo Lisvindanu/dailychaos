@@ -126,41 +126,41 @@ class FirebaseAuthService @Inject constructor(
 
     /**
      * Login with username (for username-based auth)
+     * "Welcome back, adventurer! Let's find your profile."
+     *
+     * FIX: This function should not perform a new anonymous sign-in.
+     * It should find the user ID associated with the username and return the profile.
      */
-    suspend fun loginWithUsername(username: String): Result<FirebaseUser> {
+    suspend fun loginWithUsername(username: String): Result<Map<String, Any>> {
         return try {
-            // Check if username exists
-            val userQuery = firestore.collection("usernames")
+            // Step 1: Cari username di collection 'usernames' untuk dapat UID_ASLI.
+            val usernameDoc = firestore.collection("usernames")
                 .document(username.lowercase())
                 .get()
                 .await()
 
-            if (!userQuery.exists()) {
-                return Result.failure(Exception("Username '$username' tidak ditemukan. Silakan register terlebih dahulu."))
+            if (!usernameDoc.exists()) {
+                return Result.failure(Exception("Username '$username' tidak ditemukan."))
             }
 
-            val userData = userQuery.data
-            val authType = userData?.get("authType") as? String
+            val originalUserId = usernameDoc.getString("userId")
+                ?: return Result.failure(Exception("Data UID untuk username ini korup."))
 
-            when (authType) {
-                "username" -> {
-                    // For username auth, we use anonymous auth and match the existing profile
-                    val authResult = firebaseAuth.signInAnonymously().await()
-                    val user = authResult.user ?: throw Exception("Login gagal")
+            // Step 2: Gunakan UID_ASLI untuk mengambil data profil dari collection 'users'.
+            val profileDoc = firestore.collection("users")
+                .document(originalUserId)
+                .get()
+                .await()
 
-                    // Update user preferences
-                    userPreferences.setUserId(user.uid)
-                    userPreferences.setAnonymousUsername(username)
-                    userPreferences.setDisplayName(userData["displayName"] as? String ?: username)
+            if (profileDoc.exists()) {
+                // Tetap sign-in anonymously untuk mendapatkan sesi aktif.
+                // Sesi ini hanya "tiket masuk", identitas aslinya adalah data profil yang kita fetch.
+                firebaseAuth.signInAnonymously().await()
 
-                    Result.success(user)
-                }
-                "email" -> {
-                    Result.failure(Exception("Username ini terdaftar dengan email. Silakan login menggunakan email."))
-                }
-                else -> {
-                    Result.failure(Exception("Auth type tidak dikenal"))
-                }
+                val profileData = profileDoc.data ?: throw Exception("Data profil tidak ditemukan")
+                Result.success(profileData)
+            } else {
+                Result.failure(Exception("Profile tidak ditemukan."))
             }
         } catch (e: Exception) {
             Result.failure(e)

@@ -50,23 +50,21 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
+
     @RequiresApi(Build.VERSION_CODES.O)
     override suspend fun loginWithUsername(username: String): Result<User> {
         return try {
-            val firebaseResult = firebaseAuthService.loginWithUsername(username)
-            if (firebaseResult.isSuccess) {
-                val firebaseUser = firebaseResult.getOrThrow()
-                val profileResult = firebaseAuthService.getUserProfile(firebaseUser.uid)
+            // Panggil service yang sudah diperbaiki. Hasilnya adalah data profil yang benar.
+            val profileResult = firebaseAuthService.loginWithUsername(username)
 
-                if (profileResult.isSuccess) {
-                    val profile = profileResult.getOrThrow()
-                    val user = mapFirebaseProfileToUser(profile)
-                    Result.success(user)
-                } else {
-                    Result.failure(profileResult.exceptionOrNull()!!)
-                }
+            if (profileResult.isSuccess) {
+                // Langsung petakan data profil yang benar ke domain model 'User'
+                val profileData = profileResult.getOrThrow()
+                val user = mapFirebaseProfileToUser(profileData)
+                Result.success(user)
             } else {
-                Result.failure(firebaseResult.exceptionOrNull()!!)
+                // Teruskan pesan error (misal: "Username tidak ditemukan")
+                Result.failure(profileResult.exceptionOrNull()!!)
             }
         } catch (e: Exception) {
             Result.failure(e)
