@@ -8,6 +8,8 @@ import com.dailychaos.project.preferences.UserPreferences
 import com.dailychaos.project.util.ValidationUtil
 import com.dailychaos.project.util.isValidEmail
 import com.dailychaos.project.util.isValidPassword
+import com.dailychaos.project.util.isValidUsernameFormat
+import com.dailychaos.project.util.getUsernameErrorMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -22,7 +24,8 @@ import javax.inject.Inject
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val firebaseAuthService: FirebaseAuthService,
-    private val userPreferences: UserPreferences
+    private val userPreferences: UserPreferences,
+    private val validationUtil: ValidationUtil
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -80,18 +83,38 @@ class LoginViewModel @Inject constructor(
     }
 
     private fun validateUsernameBasic(username: String): UsernameValidation {
-        val errorMessage = ValidationUtil.getUsernameErrorMessage(username)
+        // Use extension function from Extensions.kt
+        val errorMessage = username.getUsernameErrorMessage()
         return if (errorMessage == null) {
             UsernameValidation(true, "Username valid!")
         } else {
             UsernameValidation(
                 false,
                 errorMessage,
-                if (!ValidationUtil.isValidUsernameFormat(username)) {
-                    ValidationUtil.generateUsernameSuggestions(username)
+                if (!username.isValidUsernameFormat()) {
+                    generateUsernameSuggestions(username)
                 } else emptyList()
             )
         }
+    }
+
+    private fun generateUsernameSuggestions(baseUsername: String): List<String> {
+        val suggestions = mutableListOf<String>()
+        val randomNumbers = (100..999).shuffled().take(3)
+
+        randomNumbers.forEach { number ->
+            suggestions.add("${baseUsername}$number")
+        }
+
+        // Add some creative variations
+        val variations = listOf(
+            "${baseUsername}_chaos",
+            "${baseUsername}hero",
+            "chaos_$baseUsername"
+        )
+
+        suggestions.addAll(variations.take(2))
+        return suggestions.take(5)
     }
 
     private fun loginWithEmail() {
@@ -109,15 +132,25 @@ class LoginViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true, error = null) }
 
             try {
-                // TODO: Implement email login with Firebase
-                // For now, mock implementation
-                delay(1500)
-                _loginSuccessEvent.emit(Unit)
+                // Call the actual Firebase service
+                val result = firebaseAuthService.loginWithEmail(state.email, state.password)
+
+                if (result.isSuccess) {
+                    _loginSuccessEvent.emit(Unit)
+                } else {
+                    // Show the specific error from Firebase
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = result.exceptionOrNull()?.message ?: "Login failed. Please check your credentials."
+                        )
+                    }
+                }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = e.message ?: "Login failed. Please check your credentials."
+                        error = "An unexpected error occurred."
                     )
                 }
             }
@@ -127,11 +160,11 @@ class LoginViewModel @Inject constructor(
     private fun loginWithUsername() {
         val state = _uiState.value
 
+        // Validasi username tetap di sini
         if (state.username.isBlank()) {
             _uiState.update { it.copy(usernameError = "Username tidak boleh kosong!") }
             return
         }
-
         if (!state.isUsernameValid) {
             _uiState.update { it.copy(usernameError = "Username tidak valid!") }
             return
@@ -141,27 +174,32 @@ class LoginViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true, error = null) }
 
             try {
+                // Panggil service untuk mendapatkan data profil
                 val result = firebaseAuthService.loginWithUsername(state.username)
 
                 if (result.isSuccess) {
-                    // Mark first launch as completed after successful login
-                    userPreferences.setFirstLaunchCompleted()
-                    _loginSuccessEvent.emit(Unit)
+                    val profileData = result.getOrThrow()
+                    // Ekstrak UID yang BENAR dari data yang didapat
+                    val correctUserId = profileData["userId"] as? String
+
+                    if (correctUserId != null) {
+                        // Simpan UID yang benar dan data penting lainnya ke preferences
+                        userPreferences.setUserId(correctUserId)
+                        userPreferences.setUsername(profileData["username"] as? String)
+                        userPreferences.setDisplayName(profileData["displayName"] as? String ?: "")
+
+                        // Setelah menyimpan data yang benar, baru emit event sukses
+                        _loginSuccessEvent.emit(Unit)
+                    } else {
+                        _uiState.update { it.copy(isLoading = false, error = "Gagal memproses data user.") }
+                    }
                 } else {
                     val error = result.exceptionOrNull()?.message ?: "Login gagal"
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = error
-                        )
-                    }
+                    _uiState.update { it.copy(isLoading = false, error = error) }
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = e.message ?: "Terjadi kesalahan saat login"
-                    )
+                    it.copy(isLoading = false, error = e.message ?: "Terjadi kesalahan tak terduga.")
                 }
             }
         }
@@ -174,14 +212,18 @@ class LoginViewModel @Inject constructor(
             try {
                 // Generate random username for anonymous user
                 val randomUsername = "Anonymous${(1000..9999).random()}"
-                val result = firebaseAuthService.loginWithUsername(randomUsername)
+                // Call the REGISTRATION service, not the login service
+                val result = firebaseAuthService.registerWithUsername(
+                    username = randomUsername,
+                    displayName = randomUsername
+                )
 
                 if (result.isSuccess) {
-                    // Mark first launch as completed
+                    // Mark first launch as completed after successful registration
                     userPreferences.setFirstLaunchCompleted()
                     _loginSuccessEvent.emit(Unit)
                 } else {
-                    val error = result.exceptionOrNull()?.message ?: "Anonymous login gagal"
+                    val error = result.exceptionOrNull()?.message ?: "Anonymous registration failed."
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -193,7 +235,7 @@ class LoginViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = e.message ?: "Terjadi kesalahan saat login anonymous"
+                        error = e.message ?: "An unexpected error occurred."
                     )
                 }
             }

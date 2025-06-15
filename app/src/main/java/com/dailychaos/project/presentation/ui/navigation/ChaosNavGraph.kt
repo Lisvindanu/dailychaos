@@ -1,9 +1,12 @@
+// File: app/src/main/java/com/dailychaos/project/presentation/ui/navigation/ChaosNavGraph.kt
 package com.dailychaos.project.presentation.ui.navigation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -96,16 +99,14 @@ private fun ChaosBottomNavigationBar(
     currentRoute: String?,
     onNavigate: (String) -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 8.dp
+    NavigationBar(
+        modifier = Modifier.height(80.dp),
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp)
-                .navigationBarsPadding(),
+                .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -118,17 +119,22 @@ private fun ChaosBottomNavigationBar(
 
             // Journal/History
             ChaosBottomNavItem(
-                icon = if (currentRoute == ChaosDestinations.JOURNAL_ROUTE) Icons.Filled.Book else Icons.Outlined.Book,
+                icon = if (currentRoute == ChaosDestinations.JOURNAL_ROUTE) Icons.AutoMirrored.Filled.MenuBook else Icons.AutoMirrored.Outlined.MenuBook,
                 isSelected = currentRoute == ChaosDestinations.JOURNAL_ROUTE,
                 onClick = { onNavigate(ChaosDestinations.JOURNAL_ROUTE) }
             )
 
-            // Create Chaos (Center FAB)
+            // Create Chaos (Center FAB-style)
             Box(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
+                    .background(
+                        if (currentRoute == ChaosDestinations.CREATE_CHAOS_ROUTE)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.primaryContainer
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 IconButton(
@@ -195,18 +201,22 @@ private fun ChaosNavHost(
         modifier = Modifier.padding(contentPadding)
     ) {
 
-        // Splash Screen
+        // Splash Screen - Fixed dengan isUserLoggedIn dari MainViewModel
         composable(ChaosDestinations.SPLASH_ROUTE) {
-            SplashScreen { destination ->
-                val route = when (destination) {
-                    com.dailychaos.project.presentation.ui.screen.splash.SplashDestination.Onboarding -> ChaosDestinations.ONBOARDING_ROUTE
-                    com.dailychaos.project.presentation.ui.screen.splash.SplashDestination.Auth -> ChaosDestinations.LOGIN_ROUTE
-                    com.dailychaos.project.presentation.ui.screen.splash.SplashDestination.Home -> ChaosDestinations.HOME_ROUTE
-                }
-                navController.navigate(route) {
-                    popUpTo(ChaosDestinations.SPLASH_ROUTE) { inclusive = true }
-                }
-            }
+            SplashScreen(
+                onNavigateToOnboarding = {
+                    navController.navigate(ChaosDestinations.ONBOARDING_ROUTE) {
+                        popUpTo(ChaosDestinations.SPLASH_ROUTE) { inclusive = true }
+                    }
+                },
+                onNavigateToHome = {
+                    navController.navigate(ChaosDestinations.HOME_ROUTE) {
+                        popUpTo(ChaosDestinations.SPLASH_ROUTE) { inclusive = true }
+                    }
+                },
+                // FIX: Menggunakan function isUserLoggedIn dari MainViewModel
+                isUserLoggedIn = mainViewModel?.isUserLoggedIn() ?: false
+            )
         }
 
         // Onboarding
@@ -224,6 +234,8 @@ private fun ChaosNavHost(
         composable(ChaosDestinations.LOGIN_ROUTE) {
             LoginScreen(
                 onLoginSuccess = {
+                    // Update MainViewModel auth state
+                    mainViewModel?.refreshAuthState()
                     navController.navigate(ChaosDestinations.HOME_ROUTE) {
                         popUpTo(ChaosDestinations.LOGIN_ROUTE) { inclusive = true }
                     }
@@ -234,10 +246,12 @@ private fun ChaosNavHost(
             )
         }
 
+        // FIX: Register flow - redirect ke LOGIN bukan HOME setelah registrasi
         composable(ChaosDestinations.REGISTER_ROUTE) {
             RegisterScreen(
                 onRegisterSuccess = {
-                    navController.navigate(ChaosDestinations.HOME_ROUTE) {
+                    // Setelah register berhasil, arahkan ke halaman login
+                    navController.navigate(ChaosDestinations.LOGIN_ROUTE) {
                         popUpTo(ChaosDestinations.REGISTER_ROUTE) { inclusive = true }
                     }
                 },
@@ -290,7 +304,7 @@ private fun ChaosNavHost(
                 onNavigateToSettings = {
                     navController.navigate(ChaosDestinations.SETTINGS_ROUTE)
                 },
-                onLogout = {
+                onNavigateToLogin = {
                     mainViewModel?.userLoggedOut()
                     navController.navigate(ChaosDestinations.LOGIN_ROUTE) {
                         popUpTo(0) { inclusive = true }

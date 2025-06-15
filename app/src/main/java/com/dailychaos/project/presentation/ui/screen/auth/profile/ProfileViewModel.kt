@@ -1,84 +1,138 @@
+// File: app/src/main/java/com/dailychaos/project/presentation/ui/screen/auth/profile/ProfileViewModel.kt
 package com.dailychaos.project.presentation.ui.screen.auth.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dailychaos.project.domain.model.User
-import com.dailychaos.project.presentation.ui.screen.home.Achievement
-import com.dailychaos.project.presentation.ui.screen.home.AchievementType
+import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
+import com.dailychaos.project.domain.model.UserProfile
+// Import UserPreferences
+import com.dailychaos.project.preferences.UserPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+// Import 'first()'
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
 import javax.inject.Inject
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    // private val getCurrentUserUseCase: GetCurrentUserUseCase,
-    // private val getAchievementsUseCase: GetAchievementsUseCase,
-    // private val logoutUseCase: LogoutUseCase
+    private val firebaseAuthService: FirebaseAuthService,
+    // 1. Inject UserPreferences
+    private val userPreferences: UserPreferences
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState())
-    val uiState = _uiState.asStateFlow()
-
-    private val _logoutCompleteEvent = MutableSharedFlow<Unit>()
-    val logoutCompleteEvent = _logoutCompleteEvent.asSharedFlow()
+    val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
     init {
-        loadProfileData()
+        // Cukup panggil loadUserProfile, pengecekan auth ada di dalamnya
+        loadUserProfile()
     }
 
-    fun onEvent(event: ProfileEvent) {
-        when (event) {
-            is ProfileEvent.Logout -> logout()
-            is ProfileEvent.Retry -> loadProfileData()
-            else -> { /* Navigation handled in UI */
-            }
-        }
-    }
-
-    private fun loadProfileData() {
+    fun loadUserProfile() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-            kotlinx.coroutines.delay(1000) // Mock loading
-            _uiState.update {
-                it.copy(
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+
+            try {
+                // 2. Ambil UID dari UserPreferences sebagai sumber kebenaran
+                val userId = userPreferences.userId.first()
+
+                if (userId.isNullOrBlank()) {
+                    // Jika tidak ada UID di preferences, berarti user belum login dengan benar
+                    throw Exception("User ID tidak ditemukan. Silakan login kembali.")
+                }
+
+                // 3. Panggil service dengan UID yang sudah pasti benar
+                val result = firebaseAuthService.getUserProfile(userId)
+
+                if (result.isSuccess) {
+                    val profileData = result.getOrNull()
+                    if (profileData != null) {
+                        val userProfile = parseUserProfile(profileData)
+                        _uiState.value = _uiState.value.copy(
+                            userProfile = userProfile,
+                            isLoading = false,
+                            error = null
+                        )
+                    } else {
+                        _uiState.value = _uiState.value.copy(isLoading = false, error = "Data profil kosong.")
+                    }
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = result.exceptionOrNull()?.message ?: "Gagal memuat profil."
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    user = createMockUser(),
-                    achievements = createMockAchievements()
+                    error = e.message ?: "Terjadi kesalahan."
                 )
             }
         }
     }
 
-    private fun logout() {
+    fun logout() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            kotlinx.coroutines.delay(500) // Mock logout
-            _logoutCompleteEvent.emit(Unit)
+            try {
+                firebaseAuthService.logout()
+                _uiState.value = ProfileUiState() // Reset state
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = "Failed to logout: ${e.message}"
+                )
+            }
         }
     }
 
-    private fun createMockUser(): User = User(
-        id = "user_123",
-        anonymousUsername = "Adventurer42",
-        isAnonymous = false,
-        email = "kazuma.satou@konosuba.world",
-        chaosEntriesCount = 42,
-        supportGivenCount = 120,
-        supportReceivedCount = 85,
-        streakDays = 14
-    )
-
-    private fun createMockAchievements(): List<Achievement> = listOf(
-        Achievement("1", "First Chaos", "Record your first chaos entry", "🎉", isUnlocked = true, type = AchievementType.ENTRIES),
-        Achievement("2", "Week Streak", "Maintain a 7-day streak", "🔥", isUnlocked = true, type = AchievementType.STREAK),
-        Achievement("3", "Community Twin", "Find your first chaos twin", "🤝", isUnlocked = true, type = AchievementType.COMMUNITY),
-        Achievement("4", "Giver", "Give 50 support reactions", "💙", isUnlocked = true, type = AchievementType.SUPPORT),
-        Achievement("5", "Month Streak", "Maintain a 30-day streak", "🗓️", isUnlocked = false, progress = 14, maxProgress = 30, type = AchievementType.STREAK)
-    )
+    /**
+     * Parse user profile data from Firebase with safe type casting
+     * Fix: Handle different data types that may come from Firebase
+     */
+    private fun parseUserProfile(data: Map<String, Any>): UserProfile {
+        return UserProfile(
+            userId = data["userId"] as? String ?: "",
+            username = data["username"] as? String,
+            displayName = data["displayName"] as? String ?: "Adventurer",
+            email = data["email"] as? String,
+            chaosEntries = when (val entries = data["chaosEntries"]) {
+                is Long -> entries.toInt()
+                is Int -> entries
+                is Double -> entries.toInt()
+                is String -> entries.toIntOrNull() ?: 0
+                else -> 0
+            },
+            dayStreak = when (val streak = data["dayStreak"]) {
+                is Long -> streak.toInt()
+                is Int -> streak
+                is Double -> streak.toInt()
+                is String -> streak.toIntOrNull() ?: 0
+                else -> 0
+            },
+            supportGiven = when (val support = data["supportGiven"]) {
+                is Long -> support.toInt()
+                is Int -> support
+                is Double -> support.toInt()
+                is String -> support.toIntOrNull() ?: 0
+                else -> 0
+            },
+            joinDate = data["joinDate"] as? String ?: "",
+            authType = data["authType"] as? String ?: "username",
+            profilePicture = data["profilePicture"] as? String,
+            bio = data["bio"] as? String ?: "",
+            chaosLevel = when (val level = data["chaosLevel"]) {
+                is Long -> level.toInt()
+                is Int -> level
+                is Double -> level.toInt()
+                is String -> level.toIntOrNull() ?: 1
+                else -> 1
+            },
+            partyRole = data["partyRole"] as? String ?: "Newbie Adventurer",
+            isActive = data["isActive"] as? Boolean ?: true,
+            lastLoginDate = data["lastLoginDate"] as? String,
+            achievements = (data["achievements"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+        )
+    }
 }

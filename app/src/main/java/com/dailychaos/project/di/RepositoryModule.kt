@@ -3,6 +3,7 @@ package com.dailychaos.project.di
 import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
 import com.dailychaos.project.data.repository.AuthRepositoryImpl
 import com.dailychaos.project.domain.repository.AuthRepository
+import com.dailychaos.project.util.ValidationUtil
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -20,9 +21,10 @@ object RepositoryModule {
     @Provides
     @Singleton
     fun provideAuthRepository(
-        firebaseAuthService: FirebaseAuthService
+        firebaseAuthService: FirebaseAuthService,
+        validationUtil: ValidationUtil
     ): AuthRepository {
-        return AuthRepositoryImpl(firebaseAuthService)
+        return AuthRepositoryImpl(firebaseAuthService, validationUtil)
     }
 
     // TODO: Add other repositories as needed

@@ -1,10 +1,12 @@
+// File: app/src/main/java/com/dailychaos/project/presentation/MainViewModel.kt
 package com.dailychaos.project.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
+import com.dailychaos.project.preferences.UserPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -15,13 +17,55 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    // TODO: Inject global use cases when needed
-    // private val authRepository: AuthRepository,
-    // private val syncManager: SyncManager
+    private val firebaseAuthService: FirebaseAuthService,
+    private val userPreferences: UserPreferences
 ) : ViewModel() {
 
     private val _globalEvents = MutableSharedFlow<GlobalEvent>()
     val globalEvents = _globalEvents.asSharedFlow()
+
+    // Authentication state untuk navigation
+    private val _authState = MutableStateFlow<AuthenticationState>(AuthenticationState.Loading)
+    val authState = _authState.asStateFlow()
+
+    init {
+        checkAuthenticationState()
+    }
+
+    /**
+     * Check if user is logged in - untuk navigation logic
+     */
+    fun isUserLoggedIn(): Boolean {
+        return firebaseAuthService.currentUser != null
+    }
+
+    /**
+     * Check authentication state from multiple sources
+     */
+    private fun checkAuthenticationState() {
+        viewModelScope.launch {
+            try {
+                val currentUser = firebaseAuthService.currentUser
+                val isFirstLaunch = userPreferences.isFirstLaunch.first()
+                val onboardingCompleted = userPreferences.onboardingCompleted.first()
+
+                when {
+                    currentUser == null -> {
+                        _authState.value = if (!onboardingCompleted && isFirstLaunch) {
+                            AuthenticationState.NeedsOnboarding
+                        } else {
+                            AuthenticationState.Unauthenticated
+                        }
+                    }
+                    else -> {
+                        _authState.value = AuthenticationState.Authenticated(currentUser.uid)
+                    }
+                }
+            } catch (e: Exception) {
+                _authState.value = AuthenticationState.Error(e.message ?: "Auth check failed")
+            }
+        }
+    }
 
     /**
      * Handle user logout globally
@@ -29,15 +73,23 @@ class MainViewModel @Inject constructor(
     fun userLoggedOut() {
         viewModelScope.launch {
             try {
-                // TODO: Implement actual logout logic
-                // authRepository.logout()
-                // syncManager.stopSync()
-
+                firebaseAuthService.logout()
+                userPreferences.clearUserData()
+                _authState.value = AuthenticationState.Unauthenticated
                 _globalEvents.emit(GlobalEvent.UserLoggedOut)
             } catch (e: Exception) {
-                // Handle logout error
                 _globalEvents.emit(GlobalEvent.Error("Logout failed: ${e.message}"))
             }
+        }
+    }
+
+    /**
+     * Handle successful login - update auth state
+     */
+    fun userLoggedIn(userId: String) {
+        viewModelScope.launch {
+            _authState.value = AuthenticationState.Authenticated(userId)
+            _globalEvents.emit(GlobalEvent.UserLoggedIn(userId))
         }
     }
 
@@ -78,75 +130,33 @@ class MainViewModel @Inject constructor(
     }
 
     /**
-     * Handle community post shared
+     * Force refresh authentication state
      */
-    fun communityPostShared(entryId: String, postId: String) {
-        viewModelScope.launch {
-            _globalEvents.emit(GlobalEvent.CommunityPostShared(entryId, postId))
-        }
-    }
-
-    /**
-     * Handle support given to community post
-     */
-    fun supportGiven(postId: String, supportType: String) {
-        viewModelScope.launch {
-            _globalEvents.emit(GlobalEvent.SupportGiven(postId, supportType))
-        }
-    }
-
-    /**
-     * Handle chaos twins found
-     */
-    fun chaosTwinsFound(count: Int) {
-        viewModelScope.launch {
-            _globalEvents.emit(GlobalEvent.ChaosTwinsFound(count))
-        }
-    }
-
-    /**
-     * Handle app sync status
-     */
-    fun syncStatusChanged(isOnline: Boolean) {
-        viewModelScope.launch {
-            _globalEvents.emit(GlobalEvent.SyncStatusChanged(isOnline))
-        }
-    }
-
-    /**
-     * Handle general app notifications
-     */
-    fun showNotification(message: String, type: NotificationType = NotificationType.INFO) {
-        viewModelScope.launch {
-            _globalEvents.emit(GlobalEvent.ShowNotification(message, type))
-        }
+    fun refreshAuthState() {
+        checkAuthenticationState()
     }
 }
 
 /**
- * Global events that can occur across the app
+ * Authentication states for navigation logic
+ */
+sealed class AuthenticationState {
+    data object Loading : AuthenticationState()
+    data object NeedsOnboarding : AuthenticationState()
+    data object Unauthenticated : AuthenticationState()
+    data class Authenticated(val userId: String) : AuthenticationState()
+    data class Error(val message: String) : AuthenticationState()
+}
+
+/**
+ * Global Events untuk cross-screen communication
  */
 sealed class GlobalEvent {
-    object UserLoggedOut : GlobalEvent()
+    data object UserLoggedOut : GlobalEvent()
+    data class UserLoggedIn(val userId: String) : GlobalEvent()
     data class PostCreated(val postId: String) : GlobalEvent()
     data class PostUpdated(val postId: String) : GlobalEvent()
     data class ChaosEntryCreated(val entryId: String) : GlobalEvent()
     data class ChaosEntryUpdated(val entryId: String) : GlobalEvent()
-    data class CommunityPostShared(val entryId: String, val postId: String) : GlobalEvent()
-    data class SupportGiven(val postId: String, val supportType: String) : GlobalEvent()
-    data class ChaosTwinsFound(val count: Int) : GlobalEvent()
-    data class SyncStatusChanged(val isOnline: Boolean) : GlobalEvent()
-    data class ShowNotification(val message: String, val type: NotificationType) : GlobalEvent()
     data class Error(val message: String) : GlobalEvent()
-}
-
-/**
- * Notification types for different contexts
- */
-enum class NotificationType {
-    INFO,
-    SUCCESS,
-    WARNING,
-    ERROR,
-    CHAOS_QUOTE // Special untuk KonoSuba quotes
 }

@@ -1,18 +1,24 @@
+// File: app/src/main/java/com/dailychaos/project/presentation/ui/screen/auth/profile/ProfileUiState.kt
 package com.dailychaos.project.presentation.ui.screen.auth.profile
 
-import com.dailychaos.project.domain.model.User
-import com.dailychaos.project.presentation.ui.screen.home.Achievement
+import com.dailychaos.project.domain.model.UserProfile
 
+/**
+ * Profile Screen UI State
+ * "State management untuk profile adventurer"
+ */
 data class ProfileUiState(
-    val user: User? = null,
-    val isLoading: Boolean = true,
-    val error: String? = null,
-    val achievements: List<Achievement> = emptyList()
+    val userProfile: UserProfile? = null,
+    val isLoading: Boolean = false,
+    val error: String? = null
 )
 
+/**
+ * Profile Screen Events
+ */
 sealed class ProfileEvent {
-    object Logout : ProfileEvent()
-    object EditProfile : ProfileEvent()
-    object GoToSettings : ProfileEvent()
-    object Retry : ProfileEvent()
+    data object Logout : ProfileEvent()
+    data object EditProfile : ProfileEvent()
+    data object GoToSettings : ProfileEvent()
+    data object Retry : ProfileEvent()
 }
