@@ -132,15 +132,25 @@ class LoginViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true, error = null) }
 
             try {
-                // TODO: Implement email login with Firebase
-                // For now, mock implementation
-                delay(1500)
-                _loginSuccessEvent.emit(Unit)
+                // Call the actual Firebase service
+                val result = firebaseAuthService.loginWithEmail(state.email, state.password)
+
+                if (result.isSuccess) {
+                    _loginSuccessEvent.emit(Unit)
+                } else {
+                    // Show the specific error from Firebase
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = result.exceptionOrNull()?.message ?: "Login failed. Please check your credentials."
+                        )
+                    }
+                }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = e.message ?: "Login failed. Please check your credentials."
+                        error = "An unexpected error occurred."
                     )
                 }
             }
@@ -197,14 +207,18 @@ class LoginViewModel @Inject constructor(
             try {
                 // Generate random username for anonymous user
                 val randomUsername = "Anonymous${(1000..9999).random()}"
-                val result = firebaseAuthService.loginWithUsername(randomUsername)
+                // Call the REGISTRATION service, not the login service
+                val result = firebaseAuthService.registerWithUsername(
+                    username = randomUsername,
+                    displayName = randomUsername
+                )
 
                 if (result.isSuccess) {
-                    // Mark first launch as completed
+                    // Mark first launch as completed after successful registration
                     userPreferences.setFirstLaunchCompleted()
                     _loginSuccessEvent.emit(Unit)
                 } else {
-                    val error = result.exceptionOrNull()?.message ?: "Login anonim gagal"
+                    val error = result.exceptionOrNull()?.message ?: "Anonymous registration failed."
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -216,7 +230,7 @@ class LoginViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = e.message ?: "Terjadi kesalahan saat login anonim"
+                        error = e.message ?: "An unexpected error occurred."
                     )
                 }
             }

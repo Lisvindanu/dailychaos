@@ -80,7 +80,7 @@ fun OnboardingScreen(
                                     .padding(horizontal = 4.dp)
                                     .clip(CircleShape)
                                     .size(if (currentPage == iteration) 12.dp else 8.dp)
-                                    .background(color)
+//                                    .background(color)
                             )
                         }
                     }
@@ -138,9 +138,8 @@ fun OnboardingScreen(
 }
 
 // Extension function untuk background yang tidak ada di Compose
-@Composable
-private fun Modifier.background(color: androidx.compose.ui.graphics.Color): Modifier {
-    return this.then(
-        Modifier.background(color)
-    )
-}
+//@Composable
+//private fun Modifier.background(color: androidx.compose.ui.graphics.Color): Modifier {
+//    return this.then(
+//        Modifier.background(color)
+//    )
