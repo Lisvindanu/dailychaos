@@ -5,46 +5,51 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
 import com.dailychaos.project.domain.model.UserProfile
+// Import UserPreferences
+import com.dailychaos.project.preferences.UserPreferences
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+// Import 'first()'
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    private val firebaseAuthService: FirebaseAuthService
+    private val firebaseAuthService: FirebaseAuthService,
+    // 1. Inject UserPreferences
+    private val userPreferences: UserPreferences
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
     init {
-        // Check if user is authenticated
-        if (!firebaseAuthService.isAuthenticated()) {
-            _uiState.value = _uiState.value.copy(
-                error = "User not authenticated",
-                isLoading = false
-            )
-        }
+        // Cukup panggil loadUserProfile, pengecekan auth ada di dalamnya
+        loadUserProfile()
     }
 
     fun loadUserProfile() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(
-                isLoading = true,
-                error = null
-            )
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
             try {
-                // Get user profile from Firebase
-                val result = firebaseAuthService.getUserProfile()
+                // 2. Ambil UID dari UserPreferences sebagai sumber kebenaran
+                val userId = userPreferences.userId.first()
+
+                if (userId.isNullOrBlank()) {
+                    // Jika tidak ada UID di preferences, berarti user belum login dengan benar
+                    throw Exception("User ID tidak ditemukan. Silakan login kembali.")
+                }
+
+                // 3. Panggil service dengan UID yang sudah pasti benar
+                val result = firebaseAuthService.getUserProfile(userId)
 
                 if (result.isSuccess) {
                     val profileData = result.getOrNull()
                     if (profileData != null) {
-                        // Fix: Properly cast and handle the Map<String, Any> type
                         val userProfile = parseUserProfile(profileData)
                         _uiState.value = _uiState.value.copy(
                             userProfile = userProfile,
@@ -52,21 +57,18 @@ class ProfileViewModel @Inject constructor(
                             error = null
                         )
                     } else {
-                        _uiState.value = _uiState.value.copy(
-                            isLoading = false,
-                            error = "Profile data is empty"
-                        )
+                        _uiState.value = _uiState.value.copy(isLoading = false, error = "Data profil kosong.")
                     }
                 } else {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = result.exceptionOrNull()?.message ?: "Failed to load profile"
+                        error = result.exceptionOrNull()?.message ?: "Gagal memuat profil."
                     )
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    error = e.message ?: "Unknown error occurred"
+                    error = e.message ?: "Terjadi kesalahan."
                 )
             }
         }

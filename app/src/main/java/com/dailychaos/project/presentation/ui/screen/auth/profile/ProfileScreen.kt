@@ -195,7 +195,7 @@ private fun ProfileContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(bottom = 32.dp)
         ) {
-            // Avatar dengan first letter dari username
+            // Avatar dengan huruf pertama dari displayName
             Box(
                 modifier = Modifier
                     .size(100.dp)
@@ -204,30 +204,42 @@ private fun ProfileContent(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = uiState.userProfile?.username?.firstOrNull()?.uppercase() ?: "A",
+                    text = uiState.userProfile?.displayName?.firstOrNull()?.uppercase() ?: "A",
                     fontSize = 40.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
             }
 
+            // Nama utama: Selalu displayName
             Text(
-                text = uiState.userProfile?.username ?: "Adventurer42",
+                text = uiState.userProfile?.displayName ?: "Adventurer",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF5D4037),
                 modifier = Modifier.padding(top = 16.dp)
             )
 
-            Text(
-                text = uiState.userProfile?.email ?: "kazuma.sato@konosuba.world",
-                fontSize = 14.sp,
-                color = Color(0xFF8B4513),
-                modifier = Modifier.padding(top = 4.dp)
-            )
+            // --- PERUBAHAN DI SINI ---
+            // Teks sekunder: @username atau email, tergantung tipe akun
+            val secondaryText = when (uiState.userProfile?.authType) {
+                "username" -> uiState.userProfile.username?.let { "@$it" }
+                "email" -> uiState.userProfile.email
+                else -> uiState.userProfile?.username?.let { "@$it" } ?: uiState.userProfile?.email
+            }
+
+            if (!secondaryText.isNullOrBlank()) {
+                Text(
+                    text = secondaryText,
+                    fontSize = 14.sp,
+                    color = Color(0xFF8B4513),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            // --- AKHIR PERUBAHAN ---
         }
 
-        // Stats Cards
+        // Stats Cards (Tidak ada perubahan)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -236,27 +248,27 @@ private fun ProfileContent(
         ) {
             StatCard(
                 modifier = Modifier.weight(1f),
-                value = uiState.userProfile?.chaosEntries?.toString() ?: "42",
+                value = uiState.userProfile?.chaosEntries?.toString() ?: "0",
                 label = "Entries",
                 icon = "📔"
             )
 
             StatCard(
                 modifier = Modifier.weight(1f),
-                value = uiState.userProfile?.dayStreak?.toString() ?: "14",
+                value = uiState.userProfile?.dayStreak?.toString() ?: "0",
                 label = "Day Streak 🔥",
                 icon = "⚡"
             )
 
             StatCard(
                 modifier = Modifier.weight(1f),
-                value = uiState.userProfile?.supportGiven?.toString() ?: "120",
+                value = uiState.userProfile?.supportGiven?.toString() ?: "0",
                 label = "Support Given",
                 icon = "💙"
             )
         }
 
-        // Achievement Badges
+        // Achievement Badges (Tidak ada perubahan)
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -277,7 +289,6 @@ private fun ProfileContent(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
 
-                // Achievement badges
                 val achievements = listOf(
                     AchievementBadge("🌟", "First Chaos", true),
                     AchievementBadge("🔥", "Week Streak", uiState.userProfile?.dayStreak ?: 0 >= 7),
@@ -295,7 +306,7 @@ private fun ProfileContent(
             }
         }
 
-        // Logout Button
+        // Logout Button (Tidak ada perubahan)
         OutlinedButton(
             onClick = onLogout,
             modifier = Modifier
@@ -326,7 +337,6 @@ private fun ProfileContent(
         }
     }
 }
-
 @Composable
 private fun StatCard(
     modifier: Modifier = Modifier,

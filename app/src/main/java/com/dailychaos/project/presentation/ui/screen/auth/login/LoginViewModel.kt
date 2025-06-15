@@ -160,11 +160,11 @@ class LoginViewModel @Inject constructor(
     private fun loginWithUsername() {
         val state = _uiState.value
 
+        // Validasi username tetap di sini
         if (state.username.isBlank()) {
             _uiState.update { it.copy(usernameError = "Username tidak boleh kosong!") }
             return
         }
-
         if (!state.isUsernameValid) {
             _uiState.update { it.copy(usernameError = "Username tidak valid!") }
             return
@@ -174,27 +174,32 @@ class LoginViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true, error = null) }
 
             try {
+                // Panggil service untuk mendapatkan data profil
                 val result = firebaseAuthService.loginWithUsername(state.username)
 
                 if (result.isSuccess) {
-                    // Mark first launch as completed after successful login
-                    userPreferences.setFirstLaunchCompleted()
-                    _loginSuccessEvent.emit(Unit)
+                    val profileData = result.getOrThrow()
+                    // Ekstrak UID yang BENAR dari data yang didapat
+                    val correctUserId = profileData["userId"] as? String
+
+                    if (correctUserId != null) {
+                        // Simpan UID yang benar dan data penting lainnya ke preferences
+                        userPreferences.setUserId(correctUserId)
+                        userPreferences.setUsername(profileData["username"] as? String)
+                        userPreferences.setDisplayName(profileData["displayName"] as? String ?: "")
+
+                        // Setelah menyimpan data yang benar, baru emit event sukses
+                        _loginSuccessEvent.emit(Unit)
+                    } else {
+                        _uiState.update { it.copy(isLoading = false, error = "Gagal memproses data user.") }
+                    }
                 } else {
                     val error = result.exceptionOrNull()?.message ?: "Login gagal"
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = error
-                        )
-                    }
+                    _uiState.update { it.copy(isLoading = false, error = error) }
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = e.message ?: "Terjadi kesalahan saat login"
-                    )
+                    it.copy(isLoading = false, error = e.message ?: "Terjadi kesalahan tak terduga.")
                 }
             }
         }
