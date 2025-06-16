@@ -39,18 +39,7 @@ fun ProfileScreen(
         viewModel.loadUserProfile()
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFFFFF3E0),
-                        Color(0xFFFFE0B2)
-                    )
-                )
-            )
-    ) {
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -179,7 +168,7 @@ fun ProfileScreen(
             }
         }
     }
-}
+
 
 @Composable
 private fun ProfileContent(
