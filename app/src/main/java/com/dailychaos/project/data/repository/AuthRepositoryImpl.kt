@@ -6,34 +6,71 @@ import androidx.annotation.RequiresApi
 import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
 import com.dailychaos.project.domain.model.AuthState
 import com.dailychaos.project.domain.model.User
-import com.dailychaos.project.domain.model.UserSettings
-import com.dailychaos.project.domain.model.ThemeMode
 import com.dailychaos.project.domain.model.UsernameValidation
 import com.dailychaos.project.domain.repository.AuthRepository
+import com.dailychaos.project.preferences.UserPreferences
 import com.dailychaos.project.util.ValidationUtil
-import com.dailychaos.project.util.isValidUsernameFormat
-import com.dailychaos.project.util.generateUsernameSuggestions
+import com.google.firebase.Timestamp
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.toKotlinInstant
+import java.text.SimpleDateFormat
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Authentication Repository Implementation
- * "Where the party registration magic happens!"
- */
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
     private val firebaseAuthService: FirebaseAuthService,
-    private val validationUtil: ValidationUtil
+    private val validationUtil: ValidationUtil,
+    private val userPreferences: UserPreferences
 ) : AuthRepository {
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun mapFirebaseProfileToUser(profile: Map<String, Any>): User {
+        // Fungsi helper untuk parsing tanggal yang fleksibel (bisa handle String atau Timestamp)
+        fun parseDate(value: Any?): Instant {
+            return when (value) {
+                is Timestamp -> value.toDate().toInstant().toKotlinInstant()
+                is String -> {
+                    try {
+                        // Coba format umum yang terlihat di database Anda
+                        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).parse(value)?.toInstant()?.toKotlinInstant() ?: Clock.System.now()
+                    } catch (e: Exception) {
+                        Clock.System.now() // Fallback jika parsing gagal
+                    }
+                }
+                else -> Clock.System.now() // Fallback untuk tipe data lain atau null
+            }
+        }
+
+        // Fungsi helper untuk parsing angka dari Long ke Int dengan aman
+        fun parseLongToInt(value: Any?): Int {
+            return (value as? Long ?: 0L).toInt()
+        }
+
+        return User(
+            id = profile["userId"] as? String ?: profile["uid"] as? String ?: "",
+            email = profile["email"] as? String,
+            displayName = profile["displayName"] as? String ?: "",
+            anonymousUsername = profile["username"] as? String ?: "",
+            isAnonymous = profile["authType"] as? String != "email",
+            chaosEntriesCount = parseLongToInt(profile["chaosEntries"] ?: profile["chaosEntriesCount"]),
+            supportGivenCount = parseLongToInt(profile["supportGiven"] ?: profile["totalSupportsGiven"]),
+            supportReceivedCount = parseLongToInt(profile["supportReceived"] ?: profile["totalSupportsReceived"]),
+            streakDays = parseLongToInt(profile["dayStreak"]),
+            joinedAt = parseDate(profile["joinDate"] ?: profile["createdAt"]),
+            lastActiveAt = parseDate(profile["lastLoginDate"] ?: profile["lastActiveAt"] ?: profile["lastLogin"])
+            // settings akan menggunakan default dari model User
+        )
+    }
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun getAuthState(): Flow<AuthState> = flow {
         emit(AuthState.Loading)
-
         try {
             if (firebaseAuthService.isAuthenticated()) {
                 val user = getCurrentUser()
@@ -52,18 +89,51 @@ class AuthRepositoryImpl @Inject constructor(
 
 
     @RequiresApi(Build.VERSION_CODES.O)
+    override suspend fun getCurrentUser(): User? {
+        try {
+            // Ambil tipe login dan ID yang tersimpan secara lokal
+            val authType = userPreferences.authType.first()
+            val storedUserId = userPreferences.userId.first()
+
+            // --- KONDISI 1: Jika login via "username" ---
+            // Kita percaya pada ID yang disimpan, bukan sesi sementara di Firebase Auth.
+            if (authType == "username" && !storedUserId.isNullOrBlank()) {
+                val profileResult = firebaseAuthService.getUserProfile(storedUserId)
+                return if (profileResult.isSuccess) {
+                    mapFirebaseProfileToUser(profileResult.getOrThrow())
+                } else {
+                    userPreferences.clearUserData() // Bersihkan jika ID sudah tidak valid
+                    null
+                }
+            }
+
+            // --- KONDISI 2: "Cara biasa" untuk login via Email atau Registrasi Anonim baru ---
+            val firebaseUser = firebaseAuthService.currentUser
+            if (firebaseUser != null) {
+                val profileResult = firebaseAuthService.getUserProfile(firebaseUser.uid)
+                return if (profileResult.isSuccess) {
+                    mapFirebaseProfileToUser(profileResult.getOrThrow())
+                } else {
+                    null
+                }
+            }
+
+            // Jika tidak ada kondisi yang terpenuhi, berarti tidak ada user yang login
+            return null
+
+        } catch (e: Exception) {
+            // Jika terjadi error, kembalikan null
+            return null
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
     override suspend fun loginWithUsername(username: String): Result<User> {
         return try {
-            // Panggil service yang sudah diperbaiki. Hasilnya adalah data profil yang benar.
             val profileResult = firebaseAuthService.loginWithUsername(username)
-
             if (profileResult.isSuccess) {
-                // Langsung petakan data profil yang benar ke domain model 'User'
-                val profileData = profileResult.getOrThrow()
-                val user = mapFirebaseProfileToUser(profileData)
-                Result.success(user)
+                Result.success(mapFirebaseProfileToUser(profileResult.getOrThrow()))
             } else {
-                // Teruskan pesan error (misal: "Username tidak ditemukan")
                 Result.failure(profileResult.exceptionOrNull()!!)
             }
         } catch (e: Exception) {
@@ -78,11 +148,8 @@ class AuthRepositoryImpl @Inject constructor(
             if (firebaseResult.isSuccess) {
                 val firebaseUser = firebaseResult.getOrThrow()
                 val profileResult = firebaseAuthService.getUserProfile(firebaseUser.uid)
-
                 if (profileResult.isSuccess) {
-                    val profile = profileResult.getOrThrow()
-                    val user = mapFirebaseProfileToUser(profile)
-                    Result.success(user)
+                    Result.success(mapFirebaseProfileToUser(profileResult.getOrThrow()))
                 } else {
                     Result.failure(profileResult.exceptionOrNull()!!)
                 }
@@ -101,11 +168,8 @@ class AuthRepositoryImpl @Inject constructor(
             if (firebaseResult.isSuccess) {
                 val firebaseUser = firebaseResult.getOrThrow()
                 val profileResult = firebaseAuthService.getUserProfile(firebaseUser.uid)
-
                 if (profileResult.isSuccess) {
-                    val profile = profileResult.getOrThrow()
-                    val user = mapFirebaseProfileToUser(profile)
-                    Result.success(user)
+                    Result.success(mapFirebaseProfileToUser(profileResult.getOrThrow()))
                 } else {
                     Result.failure(profileResult.exceptionOrNull()!!)
                 }
@@ -124,11 +188,8 @@ class AuthRepositoryImpl @Inject constructor(
             if (firebaseResult.isSuccess) {
                 val firebaseUser = firebaseResult.getOrThrow()
                 val profileResult = firebaseAuthService.getUserProfile(firebaseUser.uid)
-
                 if (profileResult.isSuccess) {
-                    val profile = profileResult.getOrThrow()
-                    val user = mapFirebaseProfileToUser(profile)
-                    Result.success(user)
+                    Result.success(mapFirebaseProfileToUser(profileResult.getOrThrow()))
                 } else {
                     Result.failure(profileResult.exceptionOrNull()!!)
                 }
@@ -144,21 +205,6 @@ class AuthRepositoryImpl @Inject constructor(
         return firebaseAuthService.logout()
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    override suspend fun getCurrentUser(): User? {
-        return try {
-            val firebaseUser = firebaseAuthService.currentUser
-            if (firebaseUser != null) {
-                val profileResult = firebaseAuthService.getUserProfile(firebaseUser.uid)
-                if (profileResult.isSuccess) {
-                    mapFirebaseProfileToUser(profileResult.getOrThrow())
-                } else null
-            } else null
-        } catch (e: Exception) {
-            null
-        }
-    }
-
     override suspend fun updateUserProfile(updates: Map<String, Any>): Result<Unit> {
         return firebaseAuthService.updateUserProfile(updates)
     }
@@ -168,132 +214,10 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun validateUsername(username: String): UsernameValidation {
-        return try {
-            // Create a basic validation result first
-            val basicValidation = when {
-                username.isBlank() -> ValidationResult(false, "Username tidak boleh kosong!")
-                username.length < 3 -> ValidationResult(false, "Username minimal 3 karakter!")
-                username.length > 20 -> ValidationResult(false, "Username maksimal 20 karakter!")
-                !username.matches(Regex("^[a-zA-Z0-9_]+$")) -> ValidationResult(false, "Username hanya boleh huruf, angka, dan underscore!")
-                username.startsWith("_") || username.endsWith("_") -> ValidationResult(false, "Username tidak boleh dimulai atau diakhiri dengan underscore!")
-                else -> ValidationResult(true, null)
-            }
-
-            if (basicValidation.isValid) {
-                // Username format is valid, return success with proper domain model
-                UsernameValidation(
-                    isValid = true,
-                    message = "Username valid!",
-                    suggestions = emptyList()
-                )
-            } else {
-                // Username has errors, get suggestions if format is invalid
-                val suggestions = if (!username.isValidUsernameFormat()) {
-                    username.generateUsernameSuggestions()
-                } else {
-                    emptyList()
-                }
-
-                // Return with proper domain model
-                UsernameValidation(
-                    isValid = false,
-                    message = basicValidation.errorMessage ?: "Username tidak valid",
-                    suggestions = suggestions
-                )
-            }
-        } catch (e: Exception) {
-            // Error case with proper domain model
-            UsernameValidation(
-                isValid = false,
-                message = "Error validating username: ${e.message}",
-                suggestions = emptyList()
-            )
-        }
+        return validationUtil.validateUsername(username)
     }
 
     override fun isAuthenticated(): Boolean {
         return firebaseAuthService.isAuthenticated()
     }
-
-    /**
-     * Map Firebase profile data to domain User model
-     * FIX: Using correct property names that match User data class
-     */
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun mapFirebaseProfileToUser(profile: Map<String, Any>): User {
-        return User(
-            id = profile["userId"] as? String ?: "",
-            email = profile["email"] as? String,
-            anonymousUsername = profile["username"] as? String ?: "",
-            isAnonymous = profile["authType"] as? String == "username",
-            chaosEntriesCount = when (val count = profile["chaosEntries"]) {
-                is Long -> count.toInt()
-                is Int -> count
-                is Double -> count.toInt()
-                is String -> count.toIntOrNull() ?: 0
-                else -> 0
-            },
-            supportGivenCount = when (val count = profile["supportGiven"]) {
-                is Long -> count.toInt()
-                is Int -> count
-                is Double -> count.toInt()
-                is String -> count.toIntOrNull() ?: 0
-                else -> 0
-            },
-            supportReceivedCount = when (val count = profile["supportReceived"]) {
-                is Long -> count.toInt()
-                is Int -> count
-                is Double -> count.toInt()
-                is String -> count.toIntOrNull() ?: 0
-                else -> 0
-            },
-            streakDays = when (val streak = profile["dayStreak"]) {
-                is Long -> streak.toInt()
-                is Int -> streak
-                is Double -> streak.toInt()
-                is String -> streak.toIntOrNull() ?: 0
-                else -> 0
-            },
-            joinedAt = (profile["joinDate"] as? String)?.let { dateString ->
-                try {
-                    // Convert Firebase date string to Kotlin Instant
-                    val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-                    java.time.LocalDateTime.parse(dateString, formatter)
-                        .atZone(java.time.ZoneId.systemDefault())
-                        .toInstant()
-                        .toKotlinInstant()
-                } catch (e: Exception) {
-                    kotlinx.datetime.Clock.System.now()
-                }
-            } ?: kotlinx.datetime.Clock.System.now(),
-            lastActiveAt = (profile["lastLoginDate"] as? String)?.let { dateString ->
-                try {
-                    val formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-                    java.time.LocalDateTime.parse(dateString, formatter)
-                        .atZone(java.time.ZoneId.systemDefault())
-                        .toInstant()
-                        .toKotlinInstant()
-                } catch (e: Exception) {
-                    kotlinx.datetime.Clock.System.now()
-                }
-            } ?: kotlinx.datetime.Clock.System.now(),
-            settings = UserSettings(
-                themeMode = ThemeMode.SYSTEM,
-                notificationsEnabled = true,
-                dailyReminderTime = null,
-                shareByDefault = false,
-                showChaosLevel = true,
-                konosubaQuotesEnabled = true,
-                anonymousMode = profile["authType"] as? String == "username"
-            )
-        )
-    }
-
-    /**
-     * Simple validation result for internal use
-     */
-    private data class ValidationResult(
-        val isValid: Boolean,
-        val errorMessage: String? = null
-    )
 }

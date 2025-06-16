@@ -1,3 +1,4 @@
+// File: app/src/main/java/com/dailychaos/project/presentation/ui/screen/home/HomeScreen.kt
 package com.dailychaos.project.presentation.ui.screen.home
 
 import androidx.compose.foundation.layout.*
@@ -8,23 +9,22 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.*
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dailychaos.project.presentation.ui.component.*
-
-/**
- * Home Screen - Pure Mobile Design dengan fokus pada content utama
- *
- * "Dashboard mobile yang clean dan focused pada chaos entries!"
- */
+import com.dailychaos.project.domain.model.User
+import com.dailychaos.project.presentation.ui.component.ChaosEntryCard
+import com.dailychaos.project.presentation.ui.component.EmptyState
+import com.dailychaos.project.presentation.ui.component.ErrorMessage
+import com.dailychaos.project.presentation.ui.component.KonoSubaQuote
+import com.dailychaos.project.presentation.ui.component.LoadingIndicator
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
@@ -68,7 +68,7 @@ fun HomeScreen(
                 WelcomeHeaderWithStats(
                     user = uiState.user,
                     todayStats = uiState.todayStats,
-                    isStatsLoading = uiState.isStatsLoading
+                    isStatsLoading = uiState.isUserLoading // isStatsLoading terikat pada isUserLoading
                 )
             }
 
@@ -150,7 +150,7 @@ fun HomeScreen(
 
 @Composable
 private fun WelcomeHeaderWithStats(
-    user: com.dailychaos.project.domain.model.User?,
+    user: User?,
     todayStats: TodayStats,
     isStatsLoading: Boolean
 ) {
@@ -170,7 +170,16 @@ private fun WelcomeHeaderWithStats(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = if (user != null) "Welcome back, ${user.anonymousUsername}!" else "Welcome to Daily Chaos!",
+                // --- AWAL PERUBAHAN ---
+                text = if (user != null) {
+                    // Prioritaskan displayName, jika kosong baru pakai anonymousUsername.
+                    // Jika keduanya kosong, sapa sebagai "Adventurer".
+                    val nameToShow = if (user.displayName.isNotBlank()) user.displayName else user.anonymousUsername
+                    if (nameToShow.isNotBlank()) "Welcome back, $nameToShow!" else "Welcome, Adventurer!"
+                } else {
+                    "Welcome to Daily Chaos!"
+                },
+                // --- AKHIR PERUBAHAN ---
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,

@@ -532,7 +532,8 @@ class UserPreferences @Inject constructor(
         userId: String,
         username: String?,
         displayName: String,
-        email: String? = null
+        email: String? = null,
+        authType: String // <-- TAMBAHKAN PARAMETER INI
     ) {
         dataStore.edit { preferences ->
             preferences[USER_ID] = userId
@@ -543,6 +544,7 @@ class UserPreferences @Inject constructor(
             if (email != null) {
                 preferences[USER_EMAIL] = email
             }
+            preferences[AUTH_TYPE] = authType // <-- TAMBAHKAN BARIS INI UNTUK MENYIMPAN TIPE LOGIN
         }
     }
 
