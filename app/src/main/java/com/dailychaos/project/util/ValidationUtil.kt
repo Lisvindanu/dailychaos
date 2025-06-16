@@ -8,7 +8,7 @@ import javax.inject.Singleton
 
 /**
  * Validation utilities untuk Daily Chaos
- * "Even in chaos, we need some rules!"
+ * "Even in chaos, we need some rules!" - Diperbarui dengan pesan yang lebih KonoSuba!
  */
 @Singleton
 class ValidationUtil @Inject constructor() {
@@ -31,15 +31,15 @@ class ValidationUtil @Inject constructor() {
         return when {
             password.isBlank() -> PasswordValidation(
                 isValid = false,
-                errorMessage = "Password tidak boleh kosong!"
+                errorMessage = "Password tidak boleh kosong! Nanti hartamu dicuri Chris."
             )
             password.length < 6 -> PasswordValidation(
                 isValid = false,
-                errorMessage = "Password minimal 6 karakter!"
+                errorMessage = "Password minimal 6 karakter! Bahkan 'Steal' Kazuma butuh persiapan lebih."
             )
             password.length > 50 -> PasswordValidation(
                 isValid = false,
-                errorMessage = "Password maksimal 50 karakter!"
+                errorMessage = "Password-nya jangan sepanjang nama spell Megumin, dong! Maksimal 50 karakter."
             )
             else -> PasswordValidation(
                 isValid = true,
@@ -50,48 +50,47 @@ class ValidationUtil @Inject constructor() {
 
     /**
      * Validate username according to Daily Chaos rules
-     * Keep errorMessage but return domain model UsernameValidation
      */
     fun validateUsername(username: String): UsernameValidation {
         return when {
             username.isBlank() -> UsernameValidation(
                 isValid = false,
-                message = "Username tidak boleh kosong!",
+                message = "Username tidak boleh kosong! Masa mau dipanggil 'Adventurer-san' terus?",
                 suggestions = emptyList()
             )
             username.length < 3 -> UsernameValidation(
                 isValid = false,
-                message = "Username minimal 3 karakter! Contoh: 'Megumin'",
+                message = "Username minimal 3 karakter, ya. Biar nggak kayak nama slime.",
                 suggestions = username.generateUsernameSuggestions()
             )
             username.length > 20 -> UsernameValidation(
                 isValid = false,
-                message = "Username maksimal 20 karakter! Singkat tapi berkesan!",
+                message = "Username maksimal 20 karakter. Ini nama petualang, bukan judul light novel.",
                 suggestions = username.generateUsernameSuggestions()
             )
             !username.matches(Regex("^[a-zA-Z0-9_]+$")) -> UsernameValidation(
                 isValid = false,
-                message = "Username hanya boleh huruf, angka, dan underscore! Contoh: 'kazuma_hero'",
+                message = "Username hanya boleh huruf, angka, dan _. Jangan pakai sihir aneh-aneh.",
                 suggestions = username.generateUsernameSuggestions()
             )
             username.startsWith("_") || username.endsWith("_") -> UsernameValidation(
                 isValid = false,
-                message = "Username tidak boleh dimulai atau diakhiri dengan underscore!",
+                message = "Underscore jangan di depan atau belakang, nanti tersandung pas berpetualang.",
                 suggestions = username.generateUsernameSuggestions()
             )
             username.contains("__") -> UsernameValidation(
                 isValid = false,
-                message = "Username tidak boleh ada double underscore!",
+                message = "Underscore-nya jangan dobel, itu pemborosan seperti Aqua beli anggur mahal.",
                 suggestions = username.generateUsernameSuggestions()
             )
             username.lowercase() in FORBIDDEN_USERNAMES -> UsernameValidation(
                 isValid = false,
-                message = "Username '$username' tidak boleh digunakan! Coba yang lain.",
+                message = "Nama itu sudah di-reserve sama Guild Master! Coba yang lain.",
                 suggestions = username.generateUsernameSuggestions()
             )
             else -> UsernameValidation(
                 isValid = true,
-                message = "Username tersedia!",
+                message = "Nama yang bagus, petualang!",
                 suggestions = emptyList()
             )
         }
@@ -120,16 +119,12 @@ class ValidationUtil @Inject constructor() {
      */
     private fun calculatePasswordStrength(password: String): PasswordStrength {
         var score = 0
-
-        // Length bonus
         if (password.length >= 8) score += 1
         if (password.length >= 12) score += 1
-
-        // Character variety
         if (password.any { it.isLowerCase() }) score += 1
         if (password.any { it.isUpperCase() }) score += 1
         if (password.any { it.isDigit() }) score += 1
-        if (password.any { "!@#$%^&*()_+-=[]{}|;:,.<>?".contains(it) }) score += 1
+        if (password.any { "!@#\$%^&*()_+-=[]{}|;:,.<>?".contains(it) }) score += 1
 
         return when (score) {
             in 0..2 -> PasswordStrength.WEAK
@@ -144,15 +139,13 @@ class ValidationUtil @Inject constructor() {
             "admin", "administrator", "root", "system", "chaos", "dailychaos",
             "moderator", "mod", "support", "help", "api", "null", "undefined",
             "test", "demo", "example", "user", "username", "password",
-            "guest", "anonymous", "bot", "service", "official"
+            "guest", "anonymous", "bot", "service", "official",
+            "kazuma", "aqua", "megumin", "darkness", "eris", "wiz", "yunyun" // Biar user lebih kreatif
         )
     }
 }
 
-/**
- * Data classes for validation results
- * Keep local ValidationResult classes, but use domain UsernameValidation
- */
+// Data classes for validation results (tidak ada perubahan)
 data class ValidationResult(
     val isValid: Boolean,
     val errorMessage: String? = null
