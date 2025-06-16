@@ -271,9 +271,16 @@ private fun ChaosNavHost(
                         popUpTo(ChaosDestinations.REGISTER_ROUTE) { inclusive = true }
                     }
                 },
-                onNavigateToLogin = {
-                    navController.popBackStack()
-                }
+                onNavigateToLogin = { // <-- AWAL PERUBAHAN
+                    navController.navigate(ChaosDestinations.LOGIN_ROUTE) {
+                        // Hapus RegisterScreen dari back stack saat kembali ke Login
+                        popUpTo(ChaosDestinations.REGISTER_ROUTE) {
+                            inclusive = true
+                        }
+                        // Pastikan tidak ada duplikat LoginScreen di atas stack
+                        launchSingleTop = true
+                    }
+                } // <-- AKHIR PERUBAHAN
             )
         }
 
