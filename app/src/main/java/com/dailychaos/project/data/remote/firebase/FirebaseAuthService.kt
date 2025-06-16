@@ -11,10 +11,15 @@ import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 
 /**
  * Firebase Authentication Service
- * "Even anonymous adventurers need proper party registration"
+ * "Bahkan petualang anonim butuh registrasi party yang benar!"
  */
 @Singleton
 class FirebaseAuthService @Inject constructor(
@@ -36,7 +41,7 @@ class FirebaseAuthService @Inject constructor(
 
     /**
      * Register with username (anonymous auth + username validation)
-     * "Welcome new party member! Choose your adventure name wisely!"
+     * "Selamat datang di party! Pilih nama petualangmu dengan bijak!"
      */
     suspend fun registerWithUsername(username: String, displayName: String): Result<FirebaseUser> {
         return try {
@@ -49,12 +54,12 @@ class FirebaseAuthService @Inject constructor(
             // Check username availability
             val isAvailable = checkUsernameAvailability(username)
             if (!isAvailable) {
-                return Result.failure(Exception("Username '$username' sudah digunakan! Coba yang lain seperti '${username}Hero'"))
+                return Result.failure(Exception("Username '$username' sudah dipakai petualang lain! Coba '${username}SangPahlawan'."))
             }
 
             // Sign in anonymously first
             val authResult = firebaseAuth.signInAnonymously().await()
-            val user = authResult.user ?: throw Exception("Anonymous registration gagal")
+            val user = authResult.user ?: throw Exception("Pendaftaran ke Guild gagal. Mungkin servernya lagi diserang pasukan Raja Iblis. Coba lagi!")
 
             // Create user profile with username and display name
             val profileResult = createUserProfile(
@@ -75,22 +80,24 @@ class FirebaseAuthService @Inject constructor(
             } else {
                 // Rollback: delete user if profile creation fails
                 user.delete().await()
-                Result.failure(profileResult.exceptionOrNull() ?: Exception("Failed to create user profile"))
+                Result.failure(profileResult.exceptionOrNull() ?: Exception("Gagal membuat profil adventurer-mu. Ini lebih merepotkan dari mengurus Aqua."))
             }
+        } catch (e: FirebaseNetworkException) {
+            Result.failure(Exception("Koneksi ke Guild (server) terputus! Mungkin ada serangan Destroyer di dekat sini. Cek koneksimu."))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception("Terjadi error tak terduga! Ini lebih kacau dari saat Darkness jadi tameng. Coba lagi sebentar."))
         }
     }
 
     /**
      * Register with email and password
-     * "Join the party with full credentials!"
+     * "Bergabunglah dengan party menggunakan kredensial lengkap!"
      */
     suspend fun registerWithEmail(email: String, password: String, displayName: String): Result<FirebaseUser> {
         return try {
             // Create user with email/password
             val authResult = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
-            val user = authResult.user ?: throw Exception("Email registration gagal")
+            val user = authResult.user ?: throw Exception("Registrasi via email gagal. Mungkin ada sihir aneh yang menghalangi.")
 
             // Update Firebase Auth profile
             val profileUpdates = UserProfileChangeRequest.Builder()
@@ -117,19 +124,22 @@ class FirebaseAuthService @Inject constructor(
             } else {
                 // Rollback: delete user if profile creation fails
                 user.delete().await()
-                Result.failure(profileResult.exceptionOrNull() ?: Exception("Failed to create user profile"))
+                Result.failure(profileResult.exceptionOrNull() ?: Exception("Gagal membuat profil adventurer-mu. Ini lebih merepotkan dari mengurus Aqua."))
             }
+        } catch (e: FirebaseAuthUserCollisionException) {
+            Result.failure(Exception("Email ini sudah terdaftar di party lain. Kalau itu kamu, coba login saja!"))
+        } catch (e: FirebaseAuthWeakPasswordException) {
+            Result.failure(Exception("Password-mu terlalu lemah! Bahkan goblin bisa menebaknya. Coba yang lebih kuat."))
+        } catch (e: FirebaseNetworkException) {
+            Result.failure(Exception("Koneksi ke Guild (server) terputus! Mungkin ada serangan Destroyer di dekat sini. Cek koneksimu."))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception("Terjadi error tak terduga saat registrasi. Ini pasti ulah dewi tak berguna itu."))
         }
     }
 
     /**
      * Login with username (for username-based auth)
-     * "Welcome back, adventurer! Let's find your profile."
-     *
-     * FIX: This function should not perform a new anonymous sign-in.
-     * It should find the user ID associated with the username and return the profile.
+     * "Selamat datang kembali, petualang! Ayo kita cari profilmu."
      */
     suspend fun loginWithUsername(username: String): Result<Map<String, Any>> {
         return try {
@@ -140,11 +150,11 @@ class FirebaseAuthService @Inject constructor(
                 .await()
 
             if (!usernameDoc.exists()) {
-                return Result.failure(Exception("Username '$username' tidak ditemukan."))
+                return Result.failure(Exception("Adventurer dengan nama '$username' tidak ditemukan di Guild. Yakin tidak salah tulis?"))
             }
 
             val originalUserId = usernameDoc.getString("userId")
-                ?: return Result.failure(Exception("Data UID untuk username ini korup."))
+                ?: return Result.failure(Exception("Data UID untuk adventurer ini korup. Coba lapor ke Guild Master."))
 
             // Step 2: Gunakan UID_ASLI untuk mengambil data profil dari collection 'users'.
             val profileDoc = firestore.collection("users")
@@ -157,13 +167,15 @@ class FirebaseAuthService @Inject constructor(
                 // Sesi ini hanya "tiket masuk", identitas aslinya adalah data profil yang kita fetch.
                 firebaseAuth.signInAnonymously().await()
 
-                val profileData = profileDoc.data ?: throw Exception("Data profil tidak ditemukan")
+                val profileData = profileDoc.data ?: throw Exception("Data profil petualangmu hilang! Ini pasti ulah Vanir.")
                 Result.success(profileData)
             } else {
-                Result.failure(Exception("Profile tidak ditemukan."))
+                Result.failure(Exception("Profil untuk adventurer ini tidak ditemukan."))
             }
+        } catch (e: FirebaseNetworkException) {
+            Result.failure(Exception("Koneksi ke Guild (server) terputus! Mungkin ada serangan Destroyer di dekat sini. Cek koneksimu."))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception("Terjadi error tak terduga! Ini lebih kacau dari saat Darkness jadi tameng. Coba lagi sebentar."))
         }
     }
 
@@ -185,8 +197,14 @@ class FirebaseAuthService @Inject constructor(
             }
 
             Result.success(user)
+        } catch (e: FirebaseAuthInvalidUserException) {
+            Result.failure(Exception("Adventurer dengan email ini tidak ditemukan. Mungkin mau coba Register?"))
+        } catch (e: FirebaseAuthInvalidCredentialsException) {
+            Result.failure(Exception("Password salah! Coba lagi, bahkan Darkness pun kadang lupa shield-nya."))
+        } catch (e: FirebaseNetworkException) {
+            Result.failure(Exception("Koneksi ke guild hall (server) gagal. Cek koneksi internetmu!"))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception("Terjadi error yang tidak diketahui. Bahkan Aqua pun bingung!"))
         }
     }
 
@@ -226,13 +244,11 @@ class FirebaseAuthService @Inject constructor(
                 "achievements" to emptyList<String>()
             )
 
-            // Create user document
             firestore.collection("users")
                 .document(userId)
                 .set(userProfile)
                 .await()
 
-            // Create username lookup for quick availability checking (only for username auth)
             if (username.isNotBlank()) {
                 firestore.collection("usernames")
                     .document(username.lowercase())
@@ -253,11 +269,10 @@ class FirebaseAuthService @Inject constructor(
 
     /**
      * Get user profile from Firestore (current user)
-     * FIX: This method should exist for ProfileViewModel
      */
     suspend fun getUserProfile(): Result<Map<String, Any>> {
         return try {
-            val user = currentUser ?: throw Exception("User tidak login")
+            val user = currentUser ?: throw Exception("Siapa kamu? Kamu harus login dulu untuk melihat profil.")
 
             val document = firestore.collection("users")
                 .document(user.uid)
@@ -265,10 +280,10 @@ class FirebaseAuthService @Inject constructor(
                 .await()
 
             if (document.exists()) {
-                val data = document.data ?: throw Exception("Profile data tidak ditemukan")
+                val data = document.data ?: throw Exception("Datanya ada, tapi isinya kosong. Ini pasti kerjaan sihir ilusi.")
                 Result.success(data)
             } else {
-                Result.failure(Exception("Profile tidak ditemukan"))
+                Result.failure(Exception("Profil petualang ini kosong, seperti dompet Kazuma di akhir bulan."))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -277,7 +292,6 @@ class FirebaseAuthService @Inject constructor(
 
     /**
      * Get user profile from Firestore by userId
-     * FIX: This method should exist for AuthRepositoryImpl
      */
     suspend fun getUserProfile(userId: String): Result<Map<String, Any>> {
         return try {
@@ -287,10 +301,10 @@ class FirebaseAuthService @Inject constructor(
                 .await()
 
             if (document.exists()) {
-                val data = document.data ?: throw Exception("Profile data tidak ditemukan")
+                val data = document.data ?: throw Exception("Datanya ada, tapi isinya kosong. Ini pasti kerjaan sihir ilusi.")
                 Result.success(data)
             } else {
-                Result.failure(Exception("Profile tidak ditemukan"))
+                Result.failure(Exception("Profil petualang ini kosong, seperti dompet Kazuma di akhir bulan."))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -302,7 +316,7 @@ class FirebaseAuthService @Inject constructor(
      */
     suspend fun updateUserProfile(updates: Map<String, Any>): Result<Unit> {
         return try {
-            val user = currentUser ?: throw Exception("User tidak login")
+            val user = currentUser ?: throw Exception("Siapa kamu? Kamu harus login dulu untuk mengubah profil.")
 
             firestore.collection("users")
                 .document(user.uid)
@@ -320,19 +334,16 @@ class FirebaseAuthService @Inject constructor(
      */
     suspend fun deleteAccount(): Result<Unit> {
         return try {
-            val user = currentUser ?: throw Exception("User tidak login")
+            val user = currentUser ?: throw Exception("Tidak bisa menghapus akun yang tidak login!")
             val userId = user.uid
 
-            // Delete from Firestore first
             firestore.collection("users")
                 .document(userId)
                 .delete()
                 .await()
 
-            // Delete from Firebase Auth
             user.delete().await()
 
-            // Clear preferences
             userPreferences.clearUserData()
 
             Result.success(Unit)
@@ -359,10 +370,10 @@ class FirebaseAuthService @Inject constructor(
      */
     private fun validateUsername(username: String): Result<Unit> {
         return when {
-            username.length < 3 -> Result.failure(Exception("Username harus minimal 3 karakter"))
-            username.length > 20 -> Result.failure(Exception("Username maksimal 20 karakter"))
-            !username.matches(Regex("^[a-zA-Z0-9_]+$")) -> Result.failure(Exception("Username hanya boleh menggunakan huruf, angka, dan underscore"))
-            username.startsWith("_") || username.endsWith("_") -> Result.failure(Exception("Username tidak boleh diawali atau diakhiri dengan underscore"))
+            username.length < 3 -> Result.failure(Exception("Username minimal 3 karakter, ya. Biar nggak kayak nama slime."))
+            username.length > 20 -> Result.failure(Exception("Username maksimal 20 karakter. Ini nama petualang, bukan judul light novel."))
+            !username.matches(Regex("^[a-zA-Z0-9_]+$")) -> Result.failure(Exception("Username hanya boleh huruf, angka, dan _. Jangan pakai sihir aneh-aneh."))
+            username.startsWith("_") || username.endsWith("_") -> Result.failure(Exception("Underscore jangan di depan atau belakang, nanti tersandung pas berpetualang."))
             else -> Result.success(Unit)
         }
     }

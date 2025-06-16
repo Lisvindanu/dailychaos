@@ -8,7 +8,7 @@ import javax.inject.Inject
 
 /**
  * Register dengan email use case
- * "Traditional party registration with email verification!"
+ * "Registrasi party cara tradisional dengan verifikasi email!"
  */
 class RegisterWithEmailUseCase @Inject constructor(
     private val authRepository: AuthRepository,
@@ -21,18 +21,19 @@ class RegisterWithEmailUseCase @Inject constructor(
     ): Result<User> {
         // Validate email format
         if (!validationUtil.isValidEmail(email)) {
-            return Result.failure(IllegalArgumentException("Email format tidak valid"))
+            return Result.failure(IllegalArgumentException("Hei, ini bukan format mantra! Pastikan email-nya benar."))
         }
 
         // Validate password
         val passwordValidation = validationUtil.validatePassword(password)
         if (!passwordValidation.isValid) {
-            return Result.failure(IllegalArgumentException(passwordValidation.errorMessage ?: "Password tidak valid"))
+            val errorMessage = passwordValidation.errorMessage ?: "Password-nya jangan kosong, nanti guild-nya kebobolan!"
+            return Result.failure(IllegalArgumentException(errorMessage))
         }
 
         // Validate display name
         if (displayName.isBlank()) {
-            return Result.failure(IllegalArgumentException("Display name cannot be empty"))
+            return Result.failure(IllegalArgumentException("Setiap petualang butuh nama panggilan! Jangan dikosongin."))
         }
 
         return authRepository.registerWithEmail(email, password, displayName)

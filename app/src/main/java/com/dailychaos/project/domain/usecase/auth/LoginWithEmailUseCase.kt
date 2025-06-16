@@ -16,13 +16,16 @@ class LoginWithEmailUseCase @Inject constructor(
     suspend operator fun invoke(email: String, password: String): Result<User> {
         // Validate email format
         if (!validationUtil.isValidEmail(email)) {
-            return Result.failure(IllegalArgumentException("Email format tidak valid"))
+            return Result.failure(IllegalArgumentException("Hei, ini bukan format mantra! Pastikan email-nya benar."))
         }
 
         // Validate password
         val passwordValidation = validationUtil.validatePassword(password)
         if (!passwordValidation.isValid) {
-            return Result.failure(IllegalArgumentException(passwordValidation.errorMessage ?: "Password tidak valid"))
+            // Di sini kita gunakan pesan error yang sudah ada dari ValidationUtil
+            // yang juga sudah kita buat lucu sebelumnya.
+            val errorMessage = passwordValidation.errorMessage ?: "Password-nya jangan kosong, nanti guild-nya kebobolan!"
+            return Result.failure(IllegalArgumentException(errorMessage))
         }
 
         return authRepository.loginWithEmail(email, password)
