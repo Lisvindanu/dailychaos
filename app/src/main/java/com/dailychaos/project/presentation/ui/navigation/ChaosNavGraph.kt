@@ -2,6 +2,7 @@
 package com.dailychaos.project.presentation.ui.navigation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -14,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -66,6 +68,8 @@ fun ChaosNavGraph(
 
     if (showBottomNav) {
         Scaffold(
+            // TAMBAHKAN BARIS INI untuk membuat latar Scaffold transparan
+            containerColor = Color.Transparent,
             bottomBar = {
                 ChaosBottomNavigationBar(
                     currentRoute = currentRoute,
@@ -85,6 +89,7 @@ fun ChaosNavGraph(
                 contentPadding = paddingValues
             )
         }
+
     } else {
         ChaosNavHost(
             navController = navController,
@@ -101,7 +106,7 @@ private fun ChaosBottomNavigationBar(
 ) {
     NavigationBar(
         modifier = Modifier.height(80.dp),
-        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+        containerColor = MaterialTheme.colorScheme.surfaceVariant
     ) {
         Row(
             modifier = Modifier
@@ -124,10 +129,17 @@ private fun ChaosBottomNavigationBar(
                 onClick = { onNavigate(ChaosDestinations.JOURNAL_ROUTE) }
             )
 
+
             // Create Chaos (Center FAB-style)
             Box(
                 modifier = Modifier
                     .size(56.dp)
+                    // 1. Tambahkan border coklat di sini
+                    .border(
+                        width = 2.dp, // Atur ketebalan border
+                        color = MaterialTheme.colorScheme.outline, // Menggunakan warna FadedBrown dari tema
+                        shape = CircleShape
+                    )
                     .clip(CircleShape)
                     .background(
                         if (currentRoute == ChaosDestinations.CREATE_CHAOS_ROUTE)
@@ -144,8 +156,9 @@ private fun ChaosBottomNavigationBar(
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "Create Chaos",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(24.dp)
+                        // 2. Ubah warna ikon '+' menjadi coklat
+                        tint = MaterialTheme.colorScheme.primary, // Menggunakan warna BurntBrown dari tema
+                        modifier = Modifier.size(28.dp) // Sedikit dibesarkan agar lebih terlihat
                     )
                 }
             }

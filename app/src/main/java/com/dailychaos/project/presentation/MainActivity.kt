@@ -5,10 +5,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -69,23 +73,31 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             DailyChaosTheme {
-                // Gunakan Box sebagai root untuk menampung latar belakang dan konten
-                Box(modifier = Modifier.fillMaxSize()) {
-                    // 1. Gambar sebagai Latar Belakang
-                    Image(
-                        painter = painterResource(id = R.drawable.old_paper_bg_01),
-                        contentDescription = "Parchment Background",
+                // Box sebagai container untuk latar belakang gradasi
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            // Terapkan gradasi yang sama dari ProfileScreen
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFFFFF3E0), // Warna atas (lebih terang)
+                                    Color(0xFFFFE0B2)  // Warna bawah (sedikit lebih gelap)
+                                )
+                            )
+                        )
+                ) {
+                    // Surface dibuat transparan agar gradasi dari Box terlihat
+                    Surface(
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-
-                    // 2. Konten Aplikasi di atas Latar Belakang
-                    // Struktur asli proyek memberikan seluruh ViewModel, mari kita ikuti itu.
-                    val navController = rememberNavController()
-                    ChaosNavGraph(
-                        navController = navController,
-                        mainViewModel = mainViewModel
-                    )
+                        color = Color.Transparent
+                    ) {
+                        val navController = rememberNavController()
+                        ChaosNavGraph(
+                            navController = navController,
+                            mainViewModel = mainViewModel
+                        )
+                    }
                 }
             }
         }
