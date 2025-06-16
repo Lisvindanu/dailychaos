@@ -22,12 +22,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.dailychaos.project.presentation.theme.DailyChaosTheme
-import com.dailychaos.project.presentation.ui.component.CustomTextField
 import com.dailychaos.project.presentation.ui.component.ErrorMessage
 import com.dailychaos.project.presentation.ui.component.LoadingIndicator
 import kotlinx.coroutines.flow.collectLatest
@@ -51,9 +50,9 @@ fun LoginScreen(
     onNavigateToRegister: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val focusManager = LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val usernameFocusRequester = FocusRequester()
+
+    // Focus management
+    val usernameFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
         viewModel.loginSuccessEvent.collectLatest {
@@ -64,7 +63,11 @@ fun LoginScreen(
     // Auto-focus username field when switching to username mode
     LaunchedEffect(uiState.loginMode) {
         if (uiState.loginMode == LoginMode.USERNAME) {
-            usernameFocusRequester.requestFocus()
+            try {
+                usernameFocusRequester.requestFocus()
+            } catch (e: Exception) {
+                // Handle exception if focus fails
+            }
         }
     }
 
@@ -235,6 +238,7 @@ private fun UsernameLoginForm(
     focusRequester: FocusRequester,
     onLogin: () -> Unit
 ) {
+    val focusManager = LocalFocusManager.current
     Column {
         // Username Field
         OutlinedTextField(
@@ -251,12 +255,16 @@ private fun UsernameLoginForm(
                 }
             },
             isError = uiState.usernameError != null,
+            singleLine = true,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Text,
                 imeAction = ImeAction.Done
             ),
             keyboardActions = KeyboardActions(
-                onDone = { onLogin() }
+                onDone = {
+                    focusManager.clearFocus()
+                    onLogin()
+                }
             ),
             modifier = Modifier
                 .fillMaxWidth()
@@ -309,13 +317,27 @@ private fun EmailLoginForm(
     onEvent: (LoginEvent) -> Unit,
     onLogin: () -> Unit
 ) {
+    // --- FIX: Deklarasi focus manager dan requester di sini ---
+    val focusManager = LocalFocusManager.current
+    val passwordFocusRequester = remember { FocusRequester() }
+
     Column {
         // Email Field
-        CustomTextField(
+        // Menggunakan OutlinedTextField karena CustomTextField tidak punya semua parameter yg dibutuhkan
+        OutlinedTextField(
             value = uiState.email,
             onValueChange = { onEvent(LoginEvent.EmailChanged(it)) },
-            label = "Email",
-            leadingIcon = Icons.Default.Email
+            label = { Text("Email") },
+            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Email,
+                imeAction = ImeAction.Next
+            ),
+            keyboardActions = KeyboardActions(
+                onNext = { passwordFocusRequester.requestFocus() }
+            )
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -333,14 +355,20 @@ private fun EmailLoginForm(
                 }
             },
             visualTransformation = if (uiState.isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            singleLine = true,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Password,
                 imeAction = ImeAction.Done
             ),
             keyboardActions = KeyboardActions(
-                onDone = { onLogin() }
+                onDone = {
+                    focusManager.clearFocus()
+                    onLogin()
+                }
             ),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(passwordFocusRequester) // Terapkan requester di sini
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -349,7 +377,7 @@ private fun EmailLoginForm(
         Button(
             onClick = onLogin,
             modifier = Modifier.fillMaxWidth(),
-            enabled = !uiState.isLoading
+            enabled = !uiState.isLoading && uiState.email.isNotBlank() && uiState.password.isNotBlank()
         ) {
             Text("Login with Email")
         }

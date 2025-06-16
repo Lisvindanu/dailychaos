@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -35,25 +36,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dailychaos.project.presentation.ui.theme.ChaosColors
 import com.dailychaos.project.presentation.ui.component.PasswordStrengthIndicator
+import com.dailychaos.project.presentation.ui.theme.ChaosColors
 import com.dailychaos.project.util.PasswordStrength
+
+// --- FIX: Import yang hilang ditambahkan di sini ---
+import androidx.compose.material3.SuggestionChip
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
     onNavigateToLogin: () -> Unit,
-    onRegisterSuccess: () -> Unit, // FIX: Callback akan redirect ke login screen
+    onRegisterSuccess: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RegisterViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
 
-    // Observe register success event - FIX: Navigation akan ke login
     LaunchedEffect(Unit) {
         viewModel.registerSuccessEvent.collect {
-            // Ketika register berhasil, arahkan ke login screen
             onRegisterSuccess()
         }
     }
@@ -70,20 +72,15 @@ fun RegisterScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Header - UPDATED dengan pesan yang lebih jelas
             RegisterHeader()
-
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Register Mode Toggle
             RegisterModeToggle(
                 selectedMode = uiState.registerMode,
                 onModeSelected = { viewModel.onEvent(RegisterEvent.SwitchRegisterMode(it)) }
             )
-
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Register Form
             when (uiState.registerMode) {
                 RegisterMode.USERNAME -> {
                     UsernameRegisterForm(
@@ -109,9 +106,9 @@ fun RegisterScreen(
                         isPasswordVisible = uiState.isPasswordVisible,
                         isConfirmPasswordVisible = uiState.isConfirmPasswordVisible,
                         isLoading = uiState.isLoading,
-                        emailError = uiState.emailError, // ADDED error handling
-                        passwordError = uiState.passwordError, // ADDED error handling
-                        confirmPasswordError = uiState.confirmPasswordError, // ADDED error handling
+                        emailError = uiState.emailError,
+                        passwordError = uiState.passwordError,
+                        confirmPasswordError = uiState.confirmPasswordError,
                         onEmailChanged = { viewModel.onEvent(RegisterEvent.EmailChanged(it)) },
                         onPasswordChanged = { viewModel.onEvent(RegisterEvent.PasswordChanged(it)) },
                         onConfirmPasswordChanged = { viewModel.onEvent(RegisterEvent.ConfirmPasswordChanged(it)) },
@@ -126,7 +123,6 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Error Message
             AnimatedVisibility(
                 visible = uiState.error != null,
                 enter = expandVertically() + fadeIn(),
@@ -162,8 +158,6 @@ fun RegisterScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-
-            // Login Redirect - UPDATED dengan pesan yang lebih jelas
             LoginRedirectSection(onNavigateToLogin = onNavigateToLogin)
         }
     }
@@ -171,9 +165,7 @@ fun RegisterScreen(
 
 @Composable
 private fun RegisterHeader() {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = "Join the Party! 🎉",
             style = MaterialTheme.typography.headlineLarge.copy(
@@ -188,7 +180,6 @@ private fun RegisterHeader() {
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
         )
-        // ADDED: Info tentang flow registrasi
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "Setelah registrasi, kamu akan diarahkan ke halaman login untuk masuk",
@@ -211,11 +202,7 @@ private fun RegisterModeToggle(
         ),
         shape = RoundedCornerShape(16.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(4.dp)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
             RegisterModeButton(
                 text = "Username",
                 icon = Icons.Default.Person,
@@ -237,7 +224,7 @@ private fun RegisterModeToggle(
 @Composable
 private fun RegisterModeButton(
     text: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -283,45 +270,27 @@ private fun UsernameRegisterForm(
     onRegister: () -> Unit,
     focusManager: FocusManager
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        // Display Name Field
+    Column(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
             value = displayName,
             onValueChange = onDisplayNameChanged,
             label = { Text("Display Name (Optional)") },
             placeholder = { Text("Contoh: Kazuma si Petualang") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Badge,
-                    contentDescription = null
-                )
-            },
-            keyboardOptions = KeyboardOptions(
-                imeAction = ImeAction.Next
-            ),
-            keyboardActions = KeyboardActions(
-                onNext = { focusManager.moveFocus(FocusDirection.Down) }
-            ),
+            leadingIcon = { Icon(imageVector = Icons.Default.Badge, contentDescription = null) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
         )
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Username Field
         OutlinedTextField(
             value = username,
             onValueChange = onUsernameChanged,
             label = { Text("Username") },
             placeholder = { Text("Contoh: kazuma_adventurer") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null
-                )
-            },
+            leadingIcon = { Icon(imageVector = Icons.Default.Person, contentDescription = null) },
             trailingIcon = {
                 if (username.isNotEmpty()) {
                     Icon(
@@ -332,20 +301,19 @@ private fun UsernameRegisterForm(
                 }
             },
             isError = usernameError != null,
-            supportingText = if (usernameError != null) {
-                { Text(usernameError) }
-            } else null,
-            keyboardOptions = KeyboardOptions(
-                imeAction = ImeAction.Done
-            ),
+            supportingText = if (usernameError != null) { { Text(usernameError) } } else null,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(
-                onDone = { onRegister() }
+                onDone = {
+                    focusManager.clearFocus()
+                    onRegister()
+                }
             ),
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
         )
 
-        // Username Suggestions
         AnimatedVisibility(
             visible = suggestions.isNotEmpty(),
             enter = expandVertically() + fadeIn(),
@@ -359,9 +327,7 @@ private fun UsernameRegisterForm(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(suggestions) { suggestion ->
                         SuggestionChip(
                             onClick = { onSuggestionClicked(suggestion) },
@@ -371,19 +337,13 @@ private fun UsernameRegisterForm(
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Register Button
         Button(
             onClick = onRegister,
             enabled = isUsernameValid && !isLoading,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = ChaosColors.primary
-            ),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = ChaosColors.primary),
             shape = RoundedCornerShape(12.dp)
         ) {
             if (isLoading) {
@@ -401,9 +361,7 @@ private fun UsernameRegisterForm(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Join the Party!",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
                 )
             }
         }
@@ -419,9 +377,9 @@ private fun EmailRegisterForm(
     isPasswordVisible: Boolean,
     isConfirmPasswordVisible: Boolean,
     isLoading: Boolean,
-    emailError: String?, // ADDED
-    passwordError: String?, // ADDED
-    confirmPasswordError: String?, // ADDED
+    emailError: String?,
+    passwordError: String?,
+    confirmPasswordError: String?,
     onEmailChanged: (String) -> Unit,
     onPasswordChanged: (String) -> Unit,
     onConfirmPasswordChanged: (String) -> Unit,
@@ -431,75 +389,44 @@ private fun EmailRegisterForm(
     onRegister: () -> Unit,
     focusManager: FocusManager
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        // Display Name Field
+    Column(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
             value = displayName,
             onValueChange = onDisplayNameChanged,
             label = { Text("Display Name (Optional)") },
             placeholder = { Text("Contoh: Kazuma si Petualang") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Badge,
-                    contentDescription = null
-                )
-            },
-            keyboardOptions = KeyboardOptions(
-                imeAction = ImeAction.Next
-            ),
-            keyboardActions = KeyboardActions(
-                onNext = { focusManager.moveFocus(FocusDirection.Down) }
-            ),
+            leadingIcon = { Icon(imageVector = Icons.Default.Badge, contentDescription = null) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
         )
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Email Field
         OutlinedTextField(
             value = email,
             onValueChange = onEmailChanged,
             label = { Text("Email") },
             placeholder = { Text("contoh@email.com") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Email,
-                    contentDescription = null
-                )
-            },
-            isError = emailError != null, // ADDED
-            supportingText = if (emailError != null) { // ADDED
-                { Text(emailError) }
-            } else null,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Email,
-                imeAction = ImeAction.Next
-            ),
-            keyboardActions = KeyboardActions(
-                onNext = { focusManager.moveFocus(FocusDirection.Down) }
-            ),
+            leadingIcon = { Icon(imageVector = Icons.Default.Email, contentDescription = null) },
+            isError = emailError != null,
+            supportingText = if (emailError != null) { { Text(emailError) } } else null,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
         )
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Password Field
         OutlinedTextField(
             value = password,
             onValueChange = onPasswordChanged,
             label = { Text("Password") },
             placeholder = { Text("Minimal 6 karakter") },
             visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Lock,
-                    contentDescription = null
-                )
-            },
+            leadingIcon = { Icon(imageVector = Icons.Default.Lock, contentDescription = null) },
             trailingIcon = {
                 IconButton(onClick = onTogglePasswordVisibility) {
                     Icon(
@@ -508,46 +435,31 @@ private fun EmailRegisterForm(
                     )
                 }
             },
-            isError = passwordError != null, // ADDED
-            supportingText = if (passwordError != null) { // ADDED
-                { Text(passwordError) }
-            } else null,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Next
-            ),
-            keyboardActions = KeyboardActions(
-                onNext = { focusManager.moveFocus(FocusDirection.Down) }
-            ),
+            isError = passwordError != null,
+            supportingText = if (passwordError != null) { { Text(passwordError) } } else null,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
         )
-
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Password Strength Indicator
         if (password.isNotEmpty()) {
             PasswordStrengthIndicator(
                 password = password,
                 strength = calculatePasswordStrength(password)
             )
         }
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Confirm Password Field
         OutlinedTextField(
             value = confirmPassword,
             onValueChange = onConfirmPasswordChanged,
             label = { Text("Confirm Password") },
             placeholder = { Text("Ketik ulang password") },
             visualTransformation = if (isConfirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Lock,
-                    contentDescription = null
-                )
-            },
+            leadingIcon = { Icon(imageVector = Icons.Default.Lock, contentDescription = null) },
             trailingIcon = {
                 IconButton(onClick = onToggleConfirmPasswordVisibility) {
                     Icon(
@@ -556,33 +468,26 @@ private fun EmailRegisterForm(
                     )
                 }
             },
-            isError = confirmPasswordError != null, // ADDED
-            supportingText = if (confirmPasswordError != null) { // ADDED
-                { Text(confirmPasswordError) }
-            } else null,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Done
-            ),
+            isError = confirmPasswordError != null,
+            supportingText = if (confirmPasswordError != null) { { Text(confirmPasswordError) } } else null,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(
-                onDone = { onRegister() }
+                onDone = {
+                    focusManager.clearFocus()
+                    onRegister()
+                }
             ),
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
         )
-
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Register Button
         Button(
             onClick = onRegister,
             enabled = email.isNotEmpty() && password.isNotEmpty() && confirmPassword.isNotEmpty() && !isLoading,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = ChaosColors.primary
-            ),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = ChaosColors.primary),
             shape = RoundedCornerShape(12.dp)
         ) {
             if (isLoading) {
@@ -600,9 +505,7 @@ private fun EmailRegisterForm(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Create Account",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
                 )
             }
         }
@@ -610,22 +513,14 @@ private fun EmailRegisterForm(
 }
 
 @Composable
-private fun LoginRedirectSection(
-    onNavigateToLogin: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+private fun LoginRedirectSection(onNavigateToLogin: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         HorizontalDivider(
             modifier = Modifier.fillMaxWidth(0.8f),
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
         )
-
         Spacer(modifier = Modifier.height(16.dp))
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "Sudah punya akun? ",
                 style = MaterialTheme.typography.bodyMedium,
@@ -643,21 +538,14 @@ private fun LoginRedirectSection(
     }
 }
 
-/**
- * Calculate password strength for UI display
- */
 private fun calculatePasswordStrength(password: String): PasswordStrength {
     var score = 0
-
-    // Length bonus
     if (password.length >= 8) score += 1
     if (password.length >= 12) score += 1
-
-    // Character variety
     if (password.any { it.isLowerCase() }) score += 1
     if (password.any { it.isUpperCase() }) score += 1
     if (password.any { it.isDigit() }) score += 1
-    if (password.any { "!@#$%^&*()_+-=[]{}|;:,.<>?".contains(it) }) score += 1
+    if (password.any { "!@#\$%^&*()_+-=[]{}|;:,.<>?".contains(it) }) score += 1
 
     return when (score) {
         in 0..2 -> PasswordStrength.WEAK
