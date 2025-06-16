@@ -137,47 +137,47 @@ class FirebaseAuthService @Inject constructor(
         }
     }
 
+
     /**
      * Login with username (for username-based auth)
      * "Selamat datang kembali, petualang! Ayo kita cari profilmu."
      */
     suspend fun loginWithUsername(username: String): Result<Map<String, Any>> {
         return try {
-            // Step 1: Cari username di collection 'usernames' untuk dapat UID_ASLI.
+            // Step 1: Cari username di collection 'usernames' untuk dapat UID asli.
             val usernameDoc = firestore.collection("usernames")
                 .document(username.lowercase())
                 .get()
                 .await()
 
             if (!usernameDoc.exists()) {
-                return Result.failure(Exception("Adventurer dengan nama '$username' tidak ditemukan di Guild. Yakin tidak salah tulis?"))
+                return Result.failure(Exception("Adventurer dengan nama '$username' tidak ditemukan di Guild."))
             }
 
             val originalUserId = usernameDoc.getString("userId")
-                ?: return Result.failure(Exception("Data UID untuk adventurer ini korup. Coba lapor ke Guild Master."))
+                ?: return Result.failure(Exception("Data UID untuk adventurer ini korup."))
 
-            // Step 2: Gunakan UID_ASLI untuk mengambil data profil dari collection 'users'.
+            // Step 2: Gunakan UID asli untuk mengambil data profil dari collection 'users'.
             val profileDoc = firestore.collection("users")
                 .document(originalUserId)
                 .get()
                 .await()
 
             if (profileDoc.exists()) {
-                // Tetap sign-in anonymously untuk mendapatkan sesi aktif.
-                // Sesi ini hanya "tiket masuk", identitas aslinya adalah data profil yang kita fetch.
-                firebaseAuth.signInAnonymously().await()
-
-                val profileData = profileDoc.data ?: throw Exception("Data profil petualangmu hilang! Ini pasti ulah Vanir.")
+                // TIDAK ADA LAGI signInAnonymously().
+                // Kita hanya mengambil data dan mengembalikannya.
+                val profileData = profileDoc.data ?: throw Exception("Data profil petualangmu hilang!")
                 Result.success(profileData)
             } else {
                 Result.failure(Exception("Profil untuk adventurer ini tidak ditemukan."))
             }
         } catch (e: FirebaseNetworkException) {
-            Result.failure(Exception("Koneksi ke Guild (server) terputus! Mungkin ada serangan Destroyer di dekat sini. Cek koneksimu."))
+            Result.failure(Exception("Koneksi ke Guild (server) terputus. Cek koneksimu."))
         } catch (e: Exception) {
-            Result.failure(Exception("Terjadi error tak terduga! Ini lebih kacau dari saat Darkness jadi tameng. Coba lagi sebentar."))
+            Result.failure(e)
         }
     }
+
 
     /**
      * Login with email and password

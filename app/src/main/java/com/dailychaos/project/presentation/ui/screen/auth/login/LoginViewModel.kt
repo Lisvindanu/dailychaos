@@ -138,12 +138,14 @@ class LoginViewModel @Inject constructor(
     }
 
     private suspend fun saveUserAndProceed(user: User) {
-        // Save the fetched user's data to local preferences to maintain the session
+        // Simpan data user ke preferensi lokal untuk menjaga sesi
         userPreferences.saveUserData(
             userId = user.id,
             username = user.anonymousUsername.takeIf { it.isNotEmpty() },
-            displayName = user.anonymousUsername, // Simplified for now
-            email = user.email
+            displayName = user.displayName.ifBlank { user.anonymousUsername },
+            email = user.email,
+            // Tentukan authType berdasarkan data user yang didapat
+            authType = if (user.isAnonymous) "username" else "email"
         )
         _uiState.update { it.copy(isLoading = false) }
         _loginSuccessEvent.emit(Unit)

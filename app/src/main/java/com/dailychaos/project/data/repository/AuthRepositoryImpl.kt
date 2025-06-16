@@ -8,9 +8,11 @@ import com.dailychaos.project.domain.model.AuthState
 import com.dailychaos.project.domain.model.User
 import com.dailychaos.project.domain.model.UsernameValidation
 import com.dailychaos.project.domain.repository.AuthRepository
+import com.dailychaos.project.preferences.UserPreferences
 import com.dailychaos.project.util.ValidationUtil
 import com.google.firebase.Timestamp
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -23,7 +25,8 @@ import javax.inject.Singleton
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
     private val firebaseAuthService: FirebaseAuthService,
-    private val validationUtil: ValidationUtil
+    private val validationUtil: ValidationUtil,
+    private val userPreferences: UserPreferences
 ) : AuthRepository {
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -84,22 +87,43 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
+
     @RequiresApi(Build.VERSION_CODES.O)
     override suspend fun getCurrentUser(): User? {
-        return try {
+        try {
+            // Ambil tipe login dan ID yang tersimpan secara lokal
+            val authType = userPreferences.authType.first()
+            val storedUserId = userPreferences.userId.first()
+
+            // --- KONDISI 1: Jika login via "username" ---
+            // Kita percaya pada ID yang disimpan, bukan sesi sementara di Firebase Auth.
+            if (authType == "username" && !storedUserId.isNullOrBlank()) {
+                val profileResult = firebaseAuthService.getUserProfile(storedUserId)
+                return if (profileResult.isSuccess) {
+                    mapFirebaseProfileToUser(profileResult.getOrThrow())
+                } else {
+                    userPreferences.clearUserData() // Bersihkan jika ID sudah tidak valid
+                    null
+                }
+            }
+
+            // --- KONDISI 2: "Cara biasa" untuk login via Email atau Registrasi Anonim baru ---
             val firebaseUser = firebaseAuthService.currentUser
             if (firebaseUser != null) {
                 val profileResult = firebaseAuthService.getUserProfile(firebaseUser.uid)
-                if (profileResult.isSuccess) {
+                return if (profileResult.isSuccess) {
                     mapFirebaseProfileToUser(profileResult.getOrThrow())
                 } else {
                     null
                 }
-            } else {
-                null
             }
+
+            // Jika tidak ada kondisi yang terpenuhi, berarti tidak ada user yang login
+            return null
+
         } catch (e: Exception) {
-            null
+            // Jika terjadi error, kembalikan null
+            return null
         }
     }
 
