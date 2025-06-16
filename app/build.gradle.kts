@@ -219,6 +219,19 @@ dependencies {
     // Image picker
     implementation(libs.androidx.activity.compose.v182)
 
+    // Networking & API
+    implementation(libs.retrofit.v290)
+    implementation(libs.converter.gson.v290)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging.interceptor)
+
+    // Image Loading (Coil for Compose)
+    implementation(libs.coil.compose.v250)
+    implementation("io.coil-kt:coil-compose:2.5.0")
+
+    // JSON Parsing
+    implementation("com.google.code.gson:gson:2.11.0")
+
     // Unit Tests
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

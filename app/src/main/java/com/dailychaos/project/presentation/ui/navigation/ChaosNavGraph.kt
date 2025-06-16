@@ -24,6 +24,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
+import com.dailychaos.project.data.remote.api.KonoSubaApiService
 import com.dailychaos.project.presentation.MainViewModel
 import com.dailychaos.project.presentation.ui.screen.auth.login.LoginScreen
 import com.dailychaos.project.presentation.ui.screen.auth.onboarding.OnboardingScreen
@@ -47,7 +48,8 @@ import com.dailychaos.project.presentation.ui.screen.splash.SplashScreen
 @Composable
 fun ChaosNavGraph(
     navController: NavHostController,
-    mainViewModel: MainViewModel? = null
+    mainViewModel: MainViewModel? = null,
+    konoSubaApiService: KonoSubaApiService? = null
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -86,7 +88,8 @@ fun ChaosNavGraph(
             ChaosNavHost(
                 navController = navController,
                 mainViewModel = mainViewModel,
-                contentPadding = paddingValues
+                contentPadding = paddingValues,
+                konoSubaApiService = konoSubaApiService
             )
         }
 
@@ -94,7 +97,8 @@ fun ChaosNavGraph(
         ChaosNavHost(
             navController = navController,
             mainViewModel = mainViewModel,
-            contentPadding = PaddingValues(0.dp)
+            contentPadding = PaddingValues(0.dp),
+            konoSubaApiService = konoSubaApiService
         )
     }
 }
@@ -129,15 +133,13 @@ private fun ChaosBottomNavigationBar(
                 onClick = { onNavigate(ChaosDestinations.JOURNAL_ROUTE) }
             )
 
-
             // Create Chaos (Center FAB-style)
             Box(
                 modifier = Modifier
                     .size(56.dp)
-                    // 1. Tambahkan border coklat di sini
                     .border(
-                        width = 2.dp, // Atur ketebalan border
-                        color = MaterialTheme.colorScheme.outline, // Menggunakan warna FadedBrown dari tema
+                        width = 2.dp,
+                        color = MaterialTheme.colorScheme.outline,
                         shape = CircleShape
                     )
                     .clip(CircleShape)
@@ -156,9 +158,8 @@ private fun ChaosBottomNavigationBar(
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "Create Chaos",
-                        // 2. Ubah warna ikon '+' menjadi coklat
-                        tint = MaterialTheme.colorScheme.primary, // Menggunakan warna BurntBrown dari tema
-                        modifier = Modifier.size(28.dp) // Sedikit dibesarkan agar lebih terlihat
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             }
@@ -206,7 +207,8 @@ private fun ChaosBottomNavItem(
 private fun ChaosNavHost(
     navController: NavHostController,
     mainViewModel: MainViewModel? = null,
-    contentPadding: PaddingValues
+    contentPadding: PaddingValues,
+    konoSubaApiService: KonoSubaApiService? = null
 ) {
     NavHost(
         navController = navController,
@@ -214,7 +216,7 @@ private fun ChaosNavHost(
         modifier = Modifier.padding(contentPadding)
     ) {
 
-        // Splash Screen - Fixed dengan isUserLoggedIn dari MainViewModel
+        // Splash Screen - FIXED: Force ke onboarding untuk testing
         composable(ChaosDestinations.SPLASH_ROUTE) {
             SplashScreen(
                 onNavigateToOnboarding = {
@@ -227,8 +229,9 @@ private fun ChaosNavHost(
                         popUpTo(ChaosDestinations.SPLASH_ROUTE) { inclusive = true }
                     }
                 },
-                // FIX: Menggunakan function isUserLoggedIn dari MainViewModel
-                isUserLoggedIn = mainViewModel?.isUserLoggedIn() ?: false
+                // FIXED: Force false untuk memastikan onboarding muncul
+                isUserLoggedIn = false,  // ← CHANGED: Force ke onboarding
+                apiService = konoSubaApiService
             )
         }
 
@@ -259,7 +262,7 @@ private fun ChaosNavHost(
             )
         }
 
-        // FIX: Register flow - redirect ke LOGIN bukan HOME setelah registrasi
+        // Register flow - redirect ke LOGIN bukan HOME setelah registrasi
         composable(ChaosDestinations.REGISTER_ROUTE) {
             RegisterScreen(
                 onRegisterSuccess = {
