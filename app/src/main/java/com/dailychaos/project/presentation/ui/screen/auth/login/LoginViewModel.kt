@@ -1,15 +1,12 @@
+/* app/src/main/java/com/dailychaos/project/presentation/ui/screen/auth/login/LoginViewModel.kt */
 package com.dailychaos.project.presentation.ui.screen.auth.login
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
+import com.dailychaos.project.domain.model.User
 import com.dailychaos.project.domain.model.UsernameValidation
+import com.dailychaos.project.domain.usecase.auth.AuthUseCases
 import com.dailychaos.project.preferences.UserPreferences
-import com.dailychaos.project.util.ValidationUtil
-import com.dailychaos.project.util.isValidEmail
-import com.dailychaos.project.util.isValidPassword
-import com.dailychaos.project.util.isValidUsernameFormat
-import com.dailychaos.project.util.getUsernameErrorMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -23,9 +20,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
-    private val firebaseAuthService: FirebaseAuthService,
-    private val userPreferences: UserPreferences,
-    private val validationUtil: ValidationUtil
+    private val authUseCases: AuthUseCases,
+    private val userPreferences: UserPreferences
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -39,14 +35,14 @@ class LoginViewModel @Inject constructor(
 
     fun onEvent(event: LoginEvent) {
         when (event) {
-            is LoginEvent.EmailChanged -> _uiState.update { it.copy(email = event.email) }
-            is LoginEvent.PasswordChanged -> _uiState.update { it.copy(password = event.password) }
+            is LoginEvent.EmailChanged -> _uiState.update { it.copy(email = event.email, error = null) }
+            is LoginEvent.PasswordChanged -> _uiState.update { it.copy(password = event.password, error = null) }
             is LoginEvent.UsernameChanged -> onUsernameChanged(event.username)
             is LoginEvent.TogglePasswordVisibility -> _uiState.update { it.copy(isPasswordVisible = !it.isPasswordVisible) }
             is LoginEvent.LoginWithEmail -> loginWithEmail()
             is LoginEvent.LoginWithUsername -> loginWithUsername()
             is LoginEvent.LoginAnonymously -> loginAnonymously()
-            is LoginEvent.SwitchLoginMode -> _uiState.update { it.copy(loginMode = event.mode, error = null) }
+            is LoginEvent.SwitchLoginMode -> _uiState.update { it.copy(loginMode = event.mode, error = null, usernameError = null) }
             is LoginEvent.SuggestionClicked -> onUsernameChanged(event.suggestion)
             is LoginEvent.ClearError -> _uiState.update { it.copy(error = null, usernameError = null) }
         }
@@ -63,16 +59,20 @@ class LoginViewModel @Inject constructor(
 
         // Debounce validation
         validationJob?.cancel()
-        validationJob = viewModelScope.launch {
-            delay(500) // Wait 500ms before validating
-            if (username.isNotBlank()) {
+        if (username.isNotBlank()) {
+            validationJob = viewModelScope.launch {
+                delay(500) // Wait 500ms before validating
                 validateUsername(username)
             }
+        } else {
+            _uiState.update { it.copy(isUsernameValid = false, usernameError = null) }
         }
     }
 
     private suspend fun validateUsername(username: String) {
-        val validation = validateUsernameBasic(username)
+        // We only perform basic format validation here on login.
+        // The check for existence happens on the server.
+        val validation = authUseCases.validateUsername(username)
         _uiState.update {
             it.copy(
                 isUsernameValid = validation.isValid,
@@ -82,125 +82,38 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    private fun validateUsernameBasic(username: String): UsernameValidation {
-        // Use extension function from Extensions.kt
-        val errorMessage = username.getUsernameErrorMessage()
-        return if (errorMessage == null) {
-            UsernameValidation(true, "Username valid!")
-        } else {
-            UsernameValidation(
-                false,
-                errorMessage,
-                if (!username.isValidUsernameFormat()) {
-                    generateUsernameSuggestions(username)
-                } else emptyList()
-            )
-        }
-    }
-
-    private fun generateUsernameSuggestions(baseUsername: String): List<String> {
-        val suggestions = mutableListOf<String>()
-        val randomNumbers = (100..999).shuffled().take(3)
-
-        randomNumbers.forEach { number ->
-            suggestions.add("${baseUsername}$number")
-        }
-
-        // Add some creative variations
-        val variations = listOf(
-            "${baseUsername}_chaos",
-            "${baseUsername}hero",
-            "chaos_$baseUsername"
-        )
-
-        suggestions.addAll(variations.take(2))
-        return suggestions.take(5)
-    }
-
     private fun loginWithEmail() {
-        val state = _uiState.value
-        if (!state.email.isValidEmail()) {
-            _uiState.update { it.copy(error = "Invalid email format.") }
-            return
-        }
-        if (state.password.length < 6) {
-            _uiState.update { it.copy(error = "Password must be at least 6 characters.") }
-            return
-        }
-
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
-
-            try {
-                // Call the actual Firebase service
-                val result = firebaseAuthService.loginWithEmail(state.email, state.password)
-
-                if (result.isSuccess) {
-                    _loginSuccessEvent.emit(Unit)
-                } else {
-                    // Show the specific error from Firebase
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = result.exceptionOrNull()?.message ?: "Login failed. Please check your credentials."
-                        )
-                    }
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = "An unexpected error occurred."
-                    )
-                }
+            val result = authUseCases.loginWithEmail(
+                email = _uiState.value.email,
+                password = _uiState.value.password
+            )
+            result.onSuccess { user ->
+                saveUserAndProceed(user)
+            }.onFailure { error ->
+                _uiState.update { it.copy(isLoading = false, error = error.message ?: "Login failed") }
             }
         }
     }
 
     private fun loginWithUsername() {
         val state = _uiState.value
-
-        // Validasi username tetap di sini
-        if (state.username.isBlank()) {
-            _uiState.update { it.copy(usernameError = "Username tidak boleh kosong!") }
-            return
-        }
-        if (!state.isUsernameValid) {
-            _uiState.update { it.copy(usernameError = "Username tidak valid!") }
+        if (state.username.isBlank() || !state.isUsernameValid) {
+            _uiState.update { it.copy(usernameError = "Please enter a valid username.") }
             return
         }
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
+            // **FIXED**: Call the correct use case for logging in with a username.
+            val result = authUseCases.loginWithUsername(state.username)
 
-            try {
-                // Panggil service untuk mendapatkan data profil
-                val result = firebaseAuthService.loginWithUsername(state.username)
-
-                if (result.isSuccess) {
-                    val profileData = result.getOrThrow()
-                    // Ekstrak UID yang BENAR dari data yang didapat
-                    val correctUserId = profileData["userId"] as? String
-
-                    if (correctUserId != null) {
-                        // Simpan UID yang benar dan data penting lainnya ke preferences
-                        userPreferences.setUserId(correctUserId)
-                        userPreferences.setUsername(profileData["username"] as? String)
-                        userPreferences.setDisplayName(profileData["displayName"] as? String ?: "")
-
-                        // Setelah menyimpan data yang benar, baru emit event sukses
-                        _loginSuccessEvent.emit(Unit)
-                    } else {
-                        _uiState.update { it.copy(isLoading = false, error = "Gagal memproses data user.") }
-                    }
-                } else {
-                    val error = result.exceptionOrNull()?.message ?: "Login gagal"
-                    _uiState.update { it.copy(isLoading = false, error = error) }
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(isLoading = false, error = e.message ?: "Terjadi kesalahan tak terduga.")
-                }
+            result.onSuccess { user ->
+                // After getting the user data, save it to preferences and proceed.
+                saveUserAndProceed(user)
+            }.onFailure { error ->
+                _uiState.update { it.copy(isLoading = false, error = error.message ?: "Login failed") }
             }
         }
     }
@@ -209,36 +122,30 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
 
-            try {
-                // Generate random username for anonymous user
-                val randomUsername = "Anonymous${(1000..9999).random()}"
-                // Call the REGISTRATION service, not the login service
-                val result = firebaseAuthService.registerWithUsername(
-                    username = randomUsername,
-                    displayName = randomUsername
-                )
+            // This flow is for creating a new anonymous user, so calling register is correct.
+            val randomUsername = "Adventurer${(1000..9999).random()}"
+            val result = authUseCases.registerWithUsername(
+                username = randomUsername,
+                displayName = randomUsername
+            )
 
-                if (result.isSuccess) {
-                    // Mark first launch as completed after successful registration
-                    userPreferences.setFirstLaunchCompleted()
-                    _loginSuccessEvent.emit(Unit)
-                } else {
-                    val error = result.exceptionOrNull()?.message ?: "Anonymous registration failed."
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = error
-                        )
-                    }
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = e.message ?: "An unexpected error occurred."
-                    )
-                }
+            result.onSuccess { user ->
+                saveUserAndProceed(user)
+            }.onFailure { error ->
+                _uiState.update { it.copy(isLoading = false, error = error.message ?: "Failed to start anonymous session") }
             }
         }
+    }
+
+    private suspend fun saveUserAndProceed(user: User) {
+        // Save the fetched user's data to local preferences to maintain the session
+        userPreferences.saveUserData(
+            userId = user.id,
+            username = user.anonymousUsername.takeIf { it.isNotEmpty() },
+            displayName = user.anonymousUsername, // Simplified for now
+            email = user.email
+        )
+        _uiState.update { it.copy(isLoading = false) }
+        _loginSuccessEvent.emit(Unit)
     }
 }
