@@ -1,4 +1,3 @@
-// File: app/src/main/java/com/dailychaos/project/domain/usecase/auth/RegisterWithEmailUseCase.kt
 package com.dailychaos.project.domain.usecase.auth
 
 import com.dailychaos.project.domain.model.User
@@ -7,18 +6,14 @@ import com.dailychaos.project.util.ValidationUtil
 import javax.inject.Inject
 
 /**
- * Register dengan email use case
- * "Traditional party registration with email verification!"
+ * Login dengan email use case
+ * "Traditional party entry method!"
  */
-class RegisterWithEmailUseCase @Inject constructor(
+class LoginWithEmailUseCase @Inject constructor(
     private val authRepository: AuthRepository,
     private val validationUtil: ValidationUtil
 ) {
-    suspend operator fun invoke(
-        email: String,
-        password: String,
-        displayName: String
-    ): Result<User> {
+    suspend operator fun invoke(email: String, password: String): Result<User> {
         // Validate email format
         if (!validationUtil.isValidEmail(email)) {
             return Result.failure(IllegalArgumentException("Email format tidak valid"))
@@ -30,11 +25,6 @@ class RegisterWithEmailUseCase @Inject constructor(
             return Result.failure(IllegalArgumentException(passwordValidation.errorMessage ?: "Password tidak valid"))
         }
 
-        // Validate display name
-        if (displayName.isBlank()) {
-            return Result.failure(IllegalArgumentException("Display name cannot be empty"))
-        }
-
-        return authRepository.registerWithEmail(email, password, displayName)
+        return authRepository.loginWithEmail(email, password)
     }
 }
