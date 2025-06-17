@@ -1,9 +1,11 @@
+// File: app/src/main/java/com/dailychaos/project/di/FirebaseModule.kt
 package com.dailychaos.project.di
 
 import android.content.Context
 import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.functions.FirebaseFunctions // <-- Pastikan ini diimport
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -49,6 +51,15 @@ object FirebaseModule {
         }
     }
 
+    // <-- Pastikan bagian ini TIDAK dikomentari dan ditambahkan
+    @Provides
+    @Singleton
+    fun provideFirebaseFunctions(): FirebaseFunctions {
+        // PENTING: Gunakan lokasi di mana Anda me-deploy Cloud Function.
+        // Berdasarkan output deploy Anda, lokasinya adalah "us-central1".
+        return FirebaseFunctions.getInstance("us-central1")
+    }
+
     /**
      * Provide FirebaseAuthService
      */
@@ -57,37 +68,19 @@ object FirebaseModule {
     fun provideFirebaseAuthService(
         firebaseAuth: FirebaseAuth,
         firestore: FirebaseFirestore,
-        userPreferences: com.dailychaos.project.preferences.UserPreferences
+        userPreferences: com.dailychaos.project.preferences.UserPreferences,
+        functions: FirebaseFunctions // <-- Tambahkan parameter ini
     ): FirebaseAuthService {
-        return FirebaseAuthService(firebaseAuth, firestore, userPreferences)
+        return FirebaseAuthService(firebaseAuth, firestore, userPreferences, functions) // <-- Lewatkan 'functions' di sini
     }
 
-    // TEMPORARY: Comment out other Firebase services untuk local development
+    // Hapus bagian TEMPORARY yang dikomentari di bawah ini jika sudah tidak diperlukan
     /*
     @Provides
     @Singleton
     fun provideFirebaseFunctions(): FirebaseFunctions {
         return FirebaseFunctions.getInstance()
     }
-
-    @Provides
-    @Singleton
-    fun provideFirebaseStorage(): FirebaseStorage {
-        return FirebaseStorage.getInstance()
-    }
-
-    @Provides
-    @Singleton
-    fun provideFirebaseMessaging(): FirebaseMessaging {
-        return FirebaseMessaging.getInstance()
-    }
-
-    @Provides
-    @Singleton
-    fun provideFirebaseAnalytics(
-        @ApplicationContext context: Context
-    ): FirebaseAnalytics {
-        return FirebaseAnalytics.getInstance(context)
-    }
+    // ... dan sisanya
     */
 }
