@@ -6,40 +6,59 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.*
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.dailychaos.project.domain.model.ChaosLevel
 import com.dailychaos.project.presentation.theme.DailyChaosTheme
 import com.dailychaos.project.presentation.ui.component.*
 import com.dailychaos.project.util.KonoSubaQuotes
 
 /**
- * Create Chaos Screen
+ * Create Chaos Screen - Updated with ViewModel Integration
  *
- * "Screen untuk membuat chaos entry baru dengan UI yang friendly dan motivational"
+ * "Screen untuk membuat chaos entry baru dengan real Firebase integration!"
  */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateChaosScreen(
     onNavigateBack: () -> Unit = {},
-    onChaosSaved: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onChaosSaved: (String) -> Unit = {}, // Now receives entryId
+    modifier: Modifier = Modifier,
+    viewModel: CreateChaosViewModel = hiltViewModel()
 ) {
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var chaosLevel by remember { mutableIntStateOf(5) }
-    var miniWins by remember { mutableStateOf(listOf<String>()) }
-    var tags by remember { mutableStateOf(listOf<String>()) }
-    var shareToCommnunity by remember { mutableStateOf(false) }
-
+    val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
-    val currentQuote = remember { KonoSubaQuotes.getQuoteForChaosLevel(ChaosLevel.fromValue(chaosLevel)) }
+
+    // Get quote based on current chaos level
+    val currentQuote = remember(uiState.chaosLevel) {
+        KonoSubaQuotes.getQuoteForChaosLevel(ChaosLevel.fromValue(uiState.chaosLevel))
+    }
+
+    // Handle side effects
+    LaunchedEffect(Unit) {
+        viewModel.saveSuccessEvent.collect { entryId ->
+            onChaosSaved(entryId)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.navigateBackEvent.collect {
+            onNavigateBack()
+        }
+    }
+
+    // Show error snackbar if there's an error
+    uiState.error?.let { error ->
+        LaunchedEffect(error) {
+            // You can show a snackbar here or handle error display
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -52,7 +71,10 @@ fun CreateChaosScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = { viewModel.navigateBack() },
+                        enabled = !uiState.isSaving
+                    ) {
                         Icon(
                             Icons.Default.ArrowBack,
                             contentDescription = "Back"
@@ -62,19 +84,23 @@ fun CreateChaosScreen(
                 actions = {
                     // Save button
                     IconButton(
-                        onClick = {
-                            // TODO: Save chaos entry
-                            onChaosSaved()
-                        },
-                        enabled = title.isNotBlank() && description.length >= 10
+                        onClick = { viewModel.onEvent(CreateChaosEvent.SaveChaosEntry) },
+                        enabled = uiState.isSavable
                     ) {
-                        Icon(
-                            Icons.Default.Save,
-                            contentDescription = "Save",
-                            tint = if (title.isNotBlank() && description.length >= 10)
-                                MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (uiState.isSaving) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Save,
+                                contentDescription = "Save",
+                                tint = if (uiState.isSavable)
+                                    MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -91,6 +117,38 @@ fun CreateChaosScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            // Show error message if exists
+            uiState.error?.let { error ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "⚠️",
+                            fontSize = 20.sp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = error,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            onClick = { viewModel.onEvent(CreateChaosEvent.ClearError) }
+                        ) {
+                            Text("Dismiss")
+                        }
+                    }
+                }
+            }
+
             // Motivational quote
             KonoSubaQuote(
                 quote = currentQuote.text,
@@ -99,52 +157,81 @@ fun CreateChaosScreen(
 
             // Title field
             CustomTextField(
-                value = title,
-                onValueChange = { title = it },
+                value = uiState.title,
+                onValueChange = {
+                    if (!uiState.isSaving) {
+                        viewModel.onEvent(CreateChaosEvent.TitleChanged(it))
+                    }
+                },
                 label = "What happened today?",
                 placeholder = "Apa yang terjadi hari ini?",
-                isError = title.isBlank(),
-                errorMessage = if (title.isBlank()) "Title tidak boleh kosong" else null
+                isError = uiState.title.isNotBlank() && viewModel.validateTitle(uiState.title) != null,
+                errorMessage = if (uiState.title.isNotBlank()) viewModel.validateTitle(uiState.title) else null
             )
 
             // Chaos Level Picker
             ChaosLevelPicker(
-                chaosLevel = chaosLevel,
-                onChaosLevelChange = { chaosLevel = it }
+                chaosLevel = uiState.chaosLevel,
+                onChaosLevelChange = {
+                    if (!uiState.isSaving) {
+                        viewModel.onEvent(CreateChaosEvent.ChaosLevelChanged(it))
+                    }
+                }
             )
 
             // Description field
             CustomTextField(
-                value = description,
-                onValueChange = { description = it },
+                value = uiState.description,
+                onValueChange = {
+                    if (!uiState.isSaving) {
+                        viewModel.onEvent(CreateChaosEvent.DescriptionChanged(it))
+                    }
+                },
                 label = "Tell your story",
                 placeholder = "Ceritakan chaos-mu... Ingat, bahkan party Kazuma punya hari buruk!",
                 maxLines = 6,
-                isError = description.length < 10 && description.isNotEmpty(),
-                errorMessage = if (description.length < 10 && description.isNotEmpty())
-                    "Description minimal 10 karakter" else null
+                isError = uiState.description.isNotBlank() && viewModel.validateDescription(uiState.description) != null,
+                errorMessage = if (uiState.description.isNotBlank()) viewModel.validateDescription(uiState.description) else null
             )
 
             // Mini Wins section
             MiniWinInput(
-                miniWins = miniWins,
-                onAddMiniWin = { miniWins = miniWins + it },
+                miniWins = uiState.miniWins,
+                onAddMiniWin = {
+                    if (!uiState.isSaving) {
+                        viewModel.onEvent(CreateChaosEvent.AddMiniWin(it))
+                    }
+                },
                 onRemoveMiniWin = { index ->
-                    miniWins = miniWins.toMutableList().apply { removeAt(index) }
+                    if (!uiState.isSaving) {
+                        viewModel.onEvent(CreateChaosEvent.RemoveMiniWin(index))
+                    }
                 }
             )
 
             // Tags section
             TagInputField(
-                tags = tags,
-                onAddTag = { tags = tags + it },
-                onRemoveTag = { tag -> tags = tags - tag }
+                tags = uiState.tags,
+                onAddTag = {
+                    if (!uiState.isSaving) {
+                        viewModel.onEvent(CreateChaosEvent.AddTag(it))
+                    }
+                },
+                onRemoveTag = { tag ->
+                    if (!uiState.isSaving) {
+                        viewModel.onEvent(CreateChaosEvent.RemoveTag(tag))
+                    }
+                }
             )
 
             // Share options
             ShareOptionsSection(
-                shareToCommnunity = shareToCommnunity,
-                onShareToggle = { shareToCommnunity = it }
+                shareToCommnunity = uiState.shareToCommunity,
+                onShareToggle = {
+                    if (!uiState.isSaving) {
+                        viewModel.onEvent(CreateChaosEvent.ShareToggled(it))
+                    }
+                }
             )
 
             // Action buttons
@@ -153,26 +240,34 @@ fun CreateChaosScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedButton(
-                    onClick = onNavigateBack,
-                    modifier = Modifier.weight(1f)
+                    onClick = { viewModel.navigateBack() },
+                    modifier = Modifier.weight(1f),
+                    enabled = !uiState.isSaving
                 ) {
                     Text("Cancel")
                 }
                 Button(
-                    onClick = {
-                        // TODO: Save chaos entry with share option
-                        onChaosSaved()
-                    },
+                    onClick = { viewModel.onEvent(CreateChaosEvent.SaveChaosEntry) },
                     modifier = Modifier.weight(1f),
-                    enabled = title.isNotBlank() && description.length >= 10
+                    enabled = uiState.isSavable
                 ) {
-                    Icon(
-                        Icons.Default.Save,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Save Chaos")
+                    if (uiState.isSaving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Saving...")
+                    } else {
+                        Icon(
+                            Icons.Default.Save,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Save Chaos")
+                    }
                 }
             }
 
