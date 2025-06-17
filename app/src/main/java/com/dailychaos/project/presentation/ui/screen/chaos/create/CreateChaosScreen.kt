@@ -13,27 +13,39 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.*
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.dailychaos.project.BuildConfig
 import com.dailychaos.project.domain.model.ChaosLevel
 import com.dailychaos.project.presentation.theme.DailyChaosTheme
 import com.dailychaos.project.presentation.ui.component.*
 import com.dailychaos.project.util.KonoSubaQuotes
+import timber.log.Timber
 
 /**
- * Create Chaos Screen - Updated with ViewModel Integration
+ * Create Chaos Screen - Enhanced with Debug UI
  *
- * "Screen untuk membuat chaos entry baru dengan real Firebase integration!"
+ * "Screen untuk membuat chaos entry baru dengan comprehensive debugging UI!"
  */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateChaosScreen(
     onNavigateBack: () -> Unit = {},
-    onChaosSaved: (String) -> Unit = {}, // Now receives entryId
+    onChaosSaved: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: CreateChaosViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
+
+    // Log screen state changes
+    LaunchedEffect(uiState) {
+        Timber.d("🎯 CreateChaosScreen UI State changed:")
+        Timber.d("  - Is Saving: ${uiState.isSaving}")
+        Timber.d("  - Is Savable: ${uiState.isSavable}")
+        Timber.d("  - Has Error: ${uiState.error != null}")
+        Timber.d("  - Title length: ${uiState.title.length}")
+        Timber.d("  - Description length: ${uiState.description.length}")
+    }
 
     // Get quote based on current chaos level
     val currentQuote = remember(uiState.chaosLevel) {
@@ -42,21 +54,18 @@ fun CreateChaosScreen(
 
     // Handle side effects
     LaunchedEffect(Unit) {
+        Timber.d("🔄 Setting up save success event listener")
         viewModel.saveSuccessEvent.collect { entryId ->
+            Timber.d("🎉 Save success event received in CreateChaosScreen: $entryId")
             onChaosSaved(entryId)
         }
     }
 
     LaunchedEffect(Unit) {
+        Timber.d("🔄 Setting up navigate back event listener")
         viewModel.navigateBackEvent.collect {
+            Timber.d("⬅️ Navigate back event received in CreateChaosScreen")
             onNavigateBack()
-        }
-    }
-
-    // Show error snackbar if there's an error
-    uiState.error?.let { error ->
-        LaunchedEffect(error) {
-            // You can show a snackbar here or handle error display
         }
     }
 
@@ -72,7 +81,10 @@ fun CreateChaosScreen(
                 },
                 navigationIcon = {
                     IconButton(
-                        onClick = { viewModel.navigateBack() },
+                        onClick = {
+                            Timber.d("⬅️ Back button clicked")
+                            viewModel.navigateBack()
+                        },
                         enabled = !uiState.isSaving
                     ) {
                         Icon(
@@ -84,7 +96,11 @@ fun CreateChaosScreen(
                 actions = {
                     // Save button
                     IconButton(
-                        onClick = { viewModel.onEvent(CreateChaosEvent.SaveChaosEntry) },
+                        onClick = {
+                            Timber.d("💾 Save button clicked")
+                            Timber.d("💾 Current state - Title: '${uiState.title}', Is Savable: ${uiState.isSavable}")
+                            viewModel.onEvent(CreateChaosEvent.SaveChaosEntry)
+                        },
                         enabled = uiState.isSavable
                     ) {
                         if (uiState.isSaving) {
@@ -117,95 +133,20 @@ fun CreateChaosScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Show error message if exists
+            // Enhanced Error Display
             uiState.error?.let { error ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "⚠️",
-                                fontSize = 20.sp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = error,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.weight(1f)
-                            )
-                            TextButton(
-                                onClick = { viewModel.onEvent(CreateChaosEvent.ClearError) }
-                            ) {
-                                Text("Dismiss")
-                            }
-                        }
-
-                        // Debug buttons - hanya muncul kalau ada authentication error
-                        if (error.contains("Authentication") || error.contains("login")) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                OutlinedButton(
-                                    onClick = { viewModel.recheckAuthentication() },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text("🔄 Recheck Auth")
-                                }
-                                OutlinedButton(
-                                    onClick = { viewModel.triggerAnonymousAuth() },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text("🔐 Try Anonymous")
-                                }
-                            }
-                        }
-                    }
-                }
+                EnhancedErrorCard(
+                    error = error,
+                    onDismiss = { viewModel.onEvent(CreateChaosEvent.ClearError) },
+                    onRetryAuth = { viewModel.recheckAuthentication() },
+                    onTriggerAnonymousAuth = { viewModel.triggerAnonymousAuth() }
+                )
             }
 
-
-//            uiState.error?.let { error ->
-//                Card(
-//                    modifier = Modifier.fillMaxWidth(),
-//                    colors = CardDefaults.cardColors(
-//                        containerColor = MaterialTheme.colorScheme.errorContainer
-//                    )
-//                ) {
-//                    Row(
-//                        modifier = Modifier.padding(16.dp),
-//                        verticalAlignment = Alignment.CenterVertically
-//                    ) {
-//                        Text(
-//                            text = "⚠️",
-//                            fontSize = 20.sp
-//                        )
-//                        Spacer(modifier = Modifier.width(8.dp))
-//                        Text(
-//                            text = error,
-//                            style = MaterialTheme.typography.bodyMedium,
-//                            color = MaterialTheme.colorScheme.onErrorContainer,
-//                            modifier = Modifier.weight(1f)
-//                        )
-//                        TextButton(
-//                            onClick = { viewModel.onEvent(CreateChaosEvent.ClearError) }
-//                        ) {
-//                            Text("Dismiss")
-//                        }
-//                    }
-//                }
-//            }
+            // Debug Info Card (only in debug mode)
+            if (BuildConfig.DEBUG) {
+                DebugInfoCard(uiState = uiState)
+            }
 
             // Motivational quote
             KonoSubaQuote(
@@ -218,6 +159,7 @@ fun CreateChaosScreen(
                 value = uiState.title,
                 onValueChange = {
                     if (!uiState.isSaving) {
+                        Timber.d("✏️ Title changed to: '$it'")
                         viewModel.onEvent(CreateChaosEvent.TitleChanged(it))
                     }
                 },
@@ -232,6 +174,7 @@ fun CreateChaosScreen(
                 chaosLevel = uiState.chaosLevel,
                 onChaosLevelChange = {
                     if (!uiState.isSaving) {
+                        Timber.d("🎚️ Chaos level changed to: $it")
                         viewModel.onEvent(CreateChaosEvent.ChaosLevelChanged(it))
                     }
                 }
@@ -242,6 +185,7 @@ fun CreateChaosScreen(
                 value = uiState.description,
                 onValueChange = {
                     if (!uiState.isSaving) {
+                        Timber.d("✏️ Description changed, length: ${it.length}")
                         viewModel.onEvent(CreateChaosEvent.DescriptionChanged(it))
                     }
                 },
@@ -257,11 +201,13 @@ fun CreateChaosScreen(
                 miniWins = uiState.miniWins,
                 onAddMiniWin = {
                     if (!uiState.isSaving) {
+                        Timber.d("🏆 Adding mini win: '$it'")
                         viewModel.onEvent(CreateChaosEvent.AddMiniWin(it))
                     }
                 },
                 onRemoveMiniWin = { index ->
                     if (!uiState.isSaving) {
+                        Timber.d("🗑️ Removing mini win at index: $index")
                         viewModel.onEvent(CreateChaosEvent.RemoveMiniWin(index))
                     }
                 }
@@ -272,11 +218,13 @@ fun CreateChaosScreen(
                 tags = uiState.tags,
                 onAddTag = {
                     if (!uiState.isSaving) {
+                        Timber.d("🏷️ Adding tag: '$it'")
                         viewModel.onEvent(CreateChaosEvent.AddTag(it))
                     }
                 },
                 onRemoveTag = { tag ->
                     if (!uiState.isSaving) {
+                        Timber.d("🗑️ Removing tag: '$tag'")
                         viewModel.onEvent(CreateChaosEvent.RemoveTag(tag))
                     }
                 }
@@ -287,6 +235,7 @@ fun CreateChaosScreen(
                 shareToCommnunity = uiState.shareToCommunity,
                 onShareToggle = {
                     if (!uiState.isSaving) {
+                        Timber.d("🤝 Share to community toggled: $it")
                         viewModel.onEvent(CreateChaosEvent.ShareToggled(it))
                     }
                 }
@@ -298,14 +247,20 @@ fun CreateChaosScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedButton(
-                    onClick = { viewModel.navigateBack() },
+                    onClick = {
+                        Timber.d("❌ Cancel button clicked")
+                        viewModel.navigateBack()
+                    },
                     modifier = Modifier.weight(1f),
                     enabled = !uiState.isSaving
                 ) {
                     Text("Cancel")
                 }
                 Button(
-                    onClick = { viewModel.onEvent(CreateChaosEvent.SaveChaosEntry) },
+                    onClick = {
+                        Timber.d("💾 Save Chaos button clicked")
+                        viewModel.onEvent(CreateChaosEvent.SaveChaosEntry)
+                    },
                     modifier = Modifier.weight(1f),
                     enabled = uiState.isSavable
                 ) {
@@ -334,6 +289,113 @@ fun CreateChaosScreen(
 
             // Bottom spacing
             Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun EnhancedErrorCard(
+    error: String,
+    onDismiss: () -> Unit,
+    onRetryAuth: () -> Unit,
+    onTriggerAnonymousAuth: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "⚠️",
+                    fontSize = 20.sp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = onDismiss) {
+                    Text("Dismiss")
+                }
+            }
+
+            // Debug buttons - show for authentication errors
+            if (error.contains("Authentication", ignoreCase = true) ||
+                error.contains("login", ignoreCase = true) ||
+                error.contains("auth", ignoreCase = true)) {
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            Timber.d("🔄 Recheck Auth button clicked")
+                            onRetryAuth()
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("🔄 Recheck Auth")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            Timber.d("🔐 Try Anonymous button clicked")
+                            onTriggerAnonymousAuth()
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("🔐 Anonymous")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DebugInfoCard(uiState: CreateChaosUiState) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "🐛 Debug Info",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = """
+                    • Title: "${uiState.title}" (${uiState.title.length} chars)
+                    • Description: ${uiState.description.length} chars
+                    • Chaos Level: ${uiState.chaosLevel}
+                    • Mini Wins: ${uiState.miniWins.size}
+                    • Tags: ${uiState.tags.size}
+                    • Share: ${uiState.shareToCommunity}
+                    • Is Savable: ${uiState.isSavable}
+                    • Is Saving: ${uiState.isSaving}
+                    • Has Error: ${uiState.error != null}
+                """.trimIndent(),
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+            )
         }
     }
 }
@@ -452,10 +514,3 @@ private fun HelpfulTipsCard() {
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-fun CreateChaosScreenPreview() {
-    DailyChaosTheme {
-        CreateChaosScreen()
-    }
-}
