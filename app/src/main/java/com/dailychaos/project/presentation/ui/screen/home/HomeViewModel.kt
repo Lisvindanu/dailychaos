@@ -9,13 +9,14 @@ import com.dailychaos.project.util.KonoSubaQuotes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import javax.inject.Inject
 
 /**
- * Home ViewModel - Clean Architecture
+ * Home ViewModel - Enhanced with Dynamic Quote System
  *
- * "ViewModel untuk Home Screen - sekarang terhubung dengan data asli, bukan mock!"
+ * "ViewModel untuk Home Screen - dengan quote system yang lebih engaging!"
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -28,14 +29,26 @@ class HomeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    // Quote rotation system
+    private var quoteRotationIndex = 0
+    private val availableQuotes = mutableListOf<KonoSubaQuotes.Quote>()
+
     init {
         loadInitialData()
+        setupQuoteRotation()
     }
 
     fun onEvent(event: HomeUiEvent) {
         when (event) {
             is HomeUiEvent.Refresh -> refreshData()
-            // ... (event lainnya tetap sama) ...
+            is HomeUiEvent.RefreshQuote -> refreshQuote()
+            is HomeUiEvent.NextQuote -> showNextQuote()
+            is HomeUiEvent.NavigateToEntry -> { /* Handle in UI */ }
+            is HomeUiEvent.NavigateToCreateChaos -> { /* Handle in UI */ }
+            is HomeUiEvent.NavigateToHistory -> { /* Handle in UI */ }
+            is HomeUiEvent.NavigateToCommunity -> { /* Handle in UI */ }
+            is HomeUiEvent.RetryLoadingEntries -> loadRecentEntries(uiState.value.user?.id ?: "")
+            is HomeUiEvent.ClearError -> _uiState.update { it.copy(generalError = null, entriesError = null) }
             else -> { /* Event lain ditangani di UI atau belum diimplementasikan */ }
         }
     }
@@ -44,7 +57,10 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isUserLoading = true, isEntriesLoading = true) }
 
-            // Load quote (tidak berubah)
+            // Load initial quotes pool
+            loadQuotePool()
+
+            // Load daily quote (time-based + contextual)
             loadDailyQuote()
 
             // Ambil data user asli
@@ -53,7 +69,7 @@ class HomeViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         user = userResult,
-                        currentStreak = userResult.streakDays, // Gunakan data asli
+                        currentStreak = userResult.streakDays,
                         isUserLoading = false
                     )
                 }
@@ -74,18 +90,92 @@ class HomeViewModel @Inject constructor(
     private fun refreshData() {
         _uiState.update { it.copy(isRefreshing = true, generalError = null) }
         viewModelScope.launch {
+            // Refresh quote pool with new selection
+            loadQuotePool()
+            loadDailyQuote()
+
             loadInitialData() // Cukup panggil ulang fungsi load data utama
-            _uiState.update { it.copy(isRefreshing = false, lastRefreshTime = Clock.System.now().toEpochMilliseconds()) }
+            _uiState.update {
+                it.copy(
+                    isRefreshing = false,
+                    lastRefreshTime = Clock.System.now().toEpochMilliseconds()
+                )
+            }
         }
     }
 
-    private fun loadDailyQuote() {
-        val dailyQuote = KonoSubaQuotes.getDailyInspiration()
-        _uiState.update { it.copy(dailyQuote = dailyQuote) }
+    private fun setupQuoteRotation() {
+        viewModelScope.launch {
+            while (true) {
+                delay(25000) // Rotate every 25 seconds
+                if (availableQuotes.size > 1) {
+                    showNextQuote()
+                }
+            }
+        }
     }
 
-    // FUNGSI INI SUDAH TIDAK DIPERLUKAN KARENA DATA USER DIAMBIL DI loadInitialData
-    // private fun loadUserData() { ... }
+    private fun loadQuotePool() {
+        // Create a diverse pool of quotes
+        val timeBasedQuote = KonoSubaQuotes.getTimeBasedQuote()
+        val inspirationalQuote = KonoSubaQuotes.getDailyInspiration()
+        val randomQuotes = KonoSubaQuotes.getMultipleQuotes(4)
+
+        // Create pool with variety, avoiding duplicates
+        availableQuotes.clear()
+        availableQuotes.add(timeBasedQuote)
+
+        randomQuotes.forEach { quote ->
+            if (!availableQuotes.any { it.text == quote.text }) {
+                availableQuotes.add(quote)
+            }
+        }
+
+        if (!availableQuotes.any { it.text == inspirationalQuote.text }) {
+            availableQuotes.add(inspirationalQuote)
+        }
+
+        // Add some context-specific quotes
+        val supportQuote = KonoSubaQuotes.getQuoteByContext(KonoSubaQuotes.QuoteContext.SUPPORT)
+        val communityQuote = KonoSubaQuotes.getCommunityQuote()
+
+        if (!availableQuotes.any { it.text == supportQuote.text }) {
+            availableQuotes.add(supportQuote)
+        }
+        if (!availableQuotes.any { it.text == communityQuote.text }) {
+            availableQuotes.add(communityQuote)
+        }
+
+        // Shuffle for variety
+        availableQuotes.shuffle()
+        quoteRotationIndex = 0
+    }
+
+    private fun loadDailyQuote() {
+        val currentQuote = if (availableQuotes.isNotEmpty()) {
+            availableQuotes[quoteRotationIndex]
+        } else {
+            KonoSubaQuotes.getDailyInspiration()
+        }
+
+        _uiState.update { it.copy(dailyQuote = currentQuote) }
+    }
+
+    private fun refreshQuote() {
+        viewModelScope.launch {
+            // Load completely new quote
+            val freshQuote = KonoSubaQuotes.getRandomQuote()
+            _uiState.update { it.copy(dailyQuote = freshQuote) }
+        }
+    }
+
+    private fun showNextQuote() {
+        if (availableQuotes.isNotEmpty()) {
+            quoteRotationIndex = (quoteRotationIndex + 1) % availableQuotes.size
+            val nextQuote = availableQuotes[quoteRotationIndex]
+            _uiState.update { it.copy(dailyQuote = nextQuote) }
+        }
+    }
 
     // FUNGSI INI PERLU IMPLEMENTASI LEBIH LANJUT DI MASA DEPAN
     private fun loadRecentEntries(userId: String) {
@@ -120,7 +210,7 @@ class HomeViewModel @Inject constructor(
                     Achievement(
                         id = "streak_7",
                         title = "Week Warrior",
-                        description = "7-day chaos recording streak!",
+                        description = "7 hari berturut-turut nulis chaos!",
                         emoji = "🔥",
                         isUnlocked = true,
                         type = AchievementType.STREAK
@@ -132,10 +222,22 @@ class HomeViewModel @Inject constructor(
                     Achievement(
                         id = "first_chaos",
                         title = "First Chaos",
-                        description = "Record your first chaos entry!",
+                        description = "Berhasil nulis chaos pertama!",
                         emoji = "🌟",
                         isUnlocked = true,
                         type = AchievementType.ENTRIES
+                    )
+                )
+            }
+            if (user.streakDays >= 3) {
+                achievements.add(
+                    Achievement(
+                        id = "streak_3",
+                        title = "Consistency King",
+                        description = "3 hari berturut-turut mantap!",
+                        emoji = "⚡",
+                        isUnlocked = true,
+                        type = AchievementType.STREAK
                     )
                 )
             }
@@ -148,11 +250,4 @@ class HomeViewModel @Inject constructor(
             }
         }
     }
-
-    // HAPUS SEMUA FUNGSI MOCK DATA DI BAWAH INI:
-    // private fun createMockUser() { ... }
-    // private fun createMockTodayStats() { ... }
-    // private fun createMockRecentEntries() { ... }
-    // private fun createMockAchievements() { ... }
-    // private fun createMockCommunityHighlight() { ... }
 }

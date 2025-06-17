@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dailychaos.project.data.remote.api.KonoSubaApiService
 import com.dailychaos.project.domain.model.User
 import com.dailychaos.project.presentation.ui.component.ChaosEntryCard
 import com.dailychaos.project.presentation.ui.component.EmptyState
@@ -34,7 +35,8 @@ fun HomeScreen(
     onNavigateToCommunity: () -> Unit = {},
     onNavigateToEntry: (String) -> Unit = {},
     modifier: Modifier = Modifier,
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    konoSubaApiService: KonoSubaApiService? = null // Added API service parameter
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -72,12 +74,16 @@ fun HomeScreen(
                 )
             }
 
-            // Daily Quote (only show if available)
+            // Daily Quote (only show if available) - UPDATED with API service and gestures
             uiState.dailyQuote?.let { quote ->
                 item {
                     KonoSubaQuote(
                         quote = quote.text,
-                        character = quote.character.displayName
+                        character = quote.character.displayName,
+                        apiService = konoSubaApiService, // Pass API service for character images
+                        onRefreshQuote = { viewModel.onEvent(HomeUiEvent.RefreshQuote) },
+                        onNextQuote = { viewModel.onEvent(HomeUiEvent.NextQuote) },
+                        showRefreshButton = true
                     )
                 }
             }

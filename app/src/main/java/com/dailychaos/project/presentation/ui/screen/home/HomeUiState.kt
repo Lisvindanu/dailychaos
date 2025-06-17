@@ -103,20 +103,3 @@ data class CommunityHighlight(
     val tags: List<String> = emptyList()
 )
 
-/**
- * UI Events for Home Screen
- */
-sealed class HomeUiEvent {
-    object Refresh : HomeUiEvent()
-    object LoadMore : HomeUiEvent()
-    object RetryLoadingEntries : HomeUiEvent()
-    object RetryLoadingStats : HomeUiEvent()
-    object ClearError : HomeUiEvent()
-    data class NavigateToEntry(val entryId: String) : HomeUiEvent()
-    object NavigateToCreateChaos : HomeUiEvent()
-    object NavigateToHistory : HomeUiEvent()
-    object NavigateToCommunity : HomeUiEvent()
-    object NavigateToProfile : HomeUiEvent()
-    data class ShareEntry(val entryId: String) : HomeUiEvent()
-    data class ToggleFavoriteEntry(val entryId: String) : HomeUiEvent()
-}

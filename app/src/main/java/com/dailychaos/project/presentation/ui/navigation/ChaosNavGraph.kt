@@ -271,7 +271,7 @@ private fun ChaosNavHost(
                         popUpTo(ChaosDestinations.REGISTER_ROUTE) { inclusive = true }
                     }
                 },
-                onNavigateToLogin = { // <-- AWAL PERUBAHAN
+                onNavigateToLogin = {
                     navController.navigate(ChaosDestinations.LOGIN_ROUTE) {
                         // Hapus RegisterScreen dari back stack saat kembali ke Login
                         popUpTo(ChaosDestinations.REGISTER_ROUTE) {
@@ -280,11 +280,11 @@ private fun ChaosNavHost(
                         // Pastikan tidak ada duplikat LoginScreen di atas stack
                         launchSingleTop = true
                     }
-                } // <-- AKHIR PERUBAHAN
+                }
             )
         }
 
-        // Main App Graph
+        // Main App Graph - UPDATED: Added konoSubaApiService to HomeScreen
         composable(ChaosDestinations.HOME_ROUTE) {
             HomeScreen(
                 onNavigateToCreateChaos = {
@@ -298,7 +298,8 @@ private fun ChaosNavHost(
                 },
                 onNavigateToEntry = { entryId ->
                     navController.navigate(ChaosDestinations.chaosDetailRoute(entryId))
-                }
+                },
+                konoSubaApiService = konoSubaApiService // ADDED: Pass API service to HomeScreen
             )
         }
 
