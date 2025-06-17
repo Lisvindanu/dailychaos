@@ -1,3 +1,4 @@
+// File: CreateChaosViewModel.kt - Fixed Authentication Checks
 package com.dailychaos.project.presentation.ui.screen.chaos.create
 
 import androidx.lifecycle.ViewModel
@@ -19,12 +20,6 @@ import javax.inject.Inject
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.tasks.await
 
-
-/**
- * CreateChaosViewModel - Enhanced dengan Debug Logging
- *
- * "ViewModel untuk membuat chaos entry baru dengan debugging authentication!"
- */
 @HiltViewModel
 class CreateChaosViewModel @Inject constructor(
     private val createChaosEntryUseCase: CreateChaosEntryUseCase,
@@ -34,25 +29,33 @@ class CreateChaosViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(CreateChaosUiState())
     val uiState = _uiState.asStateFlow()
 
-    private val _saveSuccessEvent = MutableSharedFlow<String>() // Emit entryId on success
+    private val _saveSuccessEvent = MutableSharedFlow<String>()
     val saveSuccessEvent = _saveSuccessEvent.asSharedFlow()
 
     private val _navigateBackEvent = MutableSharedFlow<Unit>()
     val navigateBackEvent = _navigateBackEvent.asSharedFlow()
 
     init {
-        // Debug authentication status on init
-        Timber.d("🚀 CreateChaosViewModel INIT - Starting auth checks...")
         checkAuthenticationStatus()
-
     }
 
     private fun checkAuthenticationStatus() {
         viewModelScope.launch {
             try {
-                // 1. Check Repository Auth Status
+                Timber.d("🔍 ==================== AUTHENTICATION STATUS CHECK ====================")
+
+                // 1. Check Firebase Auth directly first
+                val firebaseAuth = FirebaseAuth.getInstance()
+                val firebaseUser = firebaseAuth.currentUser
+
+                Timber.d("🔥 Direct Firebase Auth Status:")
+                Timber.d("  - Firebase User UID: ${firebaseUser?.uid ?: "NULL"}")
+                Timber.d("  - Firebase Email: ${firebaseUser?.email ?: "NULL"}")
+                Timber.d("  - Firebase Is Anonymous: ${firebaseUser?.isAnonymous ?: "NULL"}")
+
+                // 2. Check Repository Auth Status (this is a suspend function!)
                 val isAuthenticated = authRepository.isAuthenticated()
-                val currentUser = authRepository.getCurrentUser()
+                val currentUser = authRepository.getCurrentUser() // This is suspend!
 
                 Timber.d("🔐 Repository Authentication Status:")
                 Timber.d("  - Is Authenticated: $isAuthenticated")
@@ -61,22 +64,7 @@ class CreateChaosViewModel @Inject constructor(
                 Timber.d("  - User Email: ${currentUser?.email ?: "NULL"}")
                 Timber.d("  - Is Anonymous: ${currentUser?.isAnonymous ?: "NULL"}")
 
-                // 2. Check Firebase Auth Directly
-                val firebaseAuth = FirebaseAuth.getInstance()
-                val firebaseUser = firebaseAuth.currentUser
-
-                Timber.d("🔥 Direct Firebase Auth Status:")
-                Timber.d("  - Firebase User: ${firebaseUser?.uid ?: "NULL"}")
-                Timber.d("  - Firebase Email: ${firebaseUser?.email ?: "NULL"}")
-                Timber.d("  - Firebase Display Name: ${firebaseUser?.displayName ?: "NULL"}")
-                Timber.d("  - Firebase Is Anonymous: ${firebaseUser?.isAnonymous ?: "NULL"}")
-                Timber.d("  - Firebase Provider Data: ${firebaseUser?.providerData?.map { it.providerId } ?: "NULL"}")
-
-                // 3. Check User Preferences
-                // Note: You might need to inject UserPreferences or access it through repository
-                // For now, we'll log what we have
-
-                // 4. Determine the actual issue
+                // 3. Determine the actual issue and set appropriate error
                 when {
                     firebaseUser == null -> {
                         val error = "🚫 NO FIREBASE AUTHENTICATION! User must login first."
@@ -85,15 +73,15 @@ class CreateChaosViewModel @Inject constructor(
                             it.copy(error = "Authentication Required: Please login first to create chaos entries")
                         }
                     }
-                    firebaseUser.isAnonymous && currentUser == null -> {
-                        val error = "🔄 Anonymous auth exists but no user profile found"
+                    currentUser == null -> {
+                        val error = "🔄 Firebase auth exists but AuthRepository cannot find user"
                         Timber.w(error)
                         _uiState.update {
-                            it.copy(error = "User profile not found. Please complete registration.")
+                            it.copy(error = "User profile not found. Please complete registration or try re-authenticating.")
                         }
                     }
-                    !isAuthenticated && firebaseUser != null -> {
-                        val error = "🔗 Firebase auth exists but repository thinks user is not authenticated"
+                    !isAuthenticated -> {
+                        val error = "🔗 Authentication state mismatch between Firebase and Repository"
                         Timber.w(error)
                         _uiState.update {
                             it.copy(error = "Authentication state mismatch. Please try logging in again.")
@@ -101,7 +89,6 @@ class CreateChaosViewModel @Inject constructor(
                     }
                     else -> {
                         Timber.d("✅ Authentication looks good!")
-                        // Clear any existing error
                         _uiState.update { it.copy(error = null) }
                     }
                 }
@@ -120,6 +107,15 @@ class CreateChaosViewModel @Inject constructor(
             try {
                 Timber.d("🚀 Triggering Anonymous Authentication...")
                 val firebaseAuth = FirebaseAuth.getInstance()
+
+                // Check if already authenticated
+                if (firebaseAuth.currentUser != null) {
+                    Timber.d("🔄 User already authenticated, checking repository sync...")
+                    checkAuthenticationStatus()
+                    return@launch
+                }
+
+                // Sign in anonymously
                 val result = firebaseAuth.signInAnonymously().await()
                 val user = result.user
 
@@ -127,6 +123,9 @@ class CreateChaosViewModel @Inject constructor(
                     Timber.d("✅ Anonymous auth successful:")
                     Timber.d("  - UID: ${user.uid}")
                     Timber.d("  - Is Anonymous: ${user.isAnonymous}")
+
+                    // Wait a bit for auth state to propagate
+                    kotlinx.coroutines.delay(1000)
 
                     // Recheck authentication status
                     checkAuthenticationStatus()
@@ -145,7 +144,6 @@ class CreateChaosViewModel @Inject constructor(
         }
     }
 
-
     fun onEvent(event: CreateChaosEvent) {
         when (event) {
             is CreateChaosEvent.TitleChanged -> {
@@ -159,39 +157,48 @@ class CreateChaosViewModel @Inject constructor(
             }
             is CreateChaosEvent.AddMiniWin -> {
                 if (event.win.isNotBlank() && !_uiState.value.miniWins.contains(event.win)) {
+                    Timber.d("🏆 Mini win added: '${event.win}'")
                     _uiState.update { it.copy(miniWins = it.miniWins + event.win.trim()) }
                 }
             }
             is CreateChaosEvent.RemoveMiniWin -> {
                 val currentMiniWins = _uiState.value.miniWins.toMutableList()
                 if (event.index in currentMiniWins.indices) {
+                    val removedWin = currentMiniWins[event.index]
                     currentMiniWins.removeAt(event.index)
+                    Timber.d("🗑️ Mini win removed: '$removedWin'")
                     _uiState.update { it.copy(miniWins = currentMiniWins) }
                 }
             }
             is CreateChaosEvent.AddTag -> {
                 val tag = event.tag.trim().lowercase()
                 if (tag.isNotBlank() && !_uiState.value.tags.contains(tag)) {
+                    Timber.d("🏷️ Tag added: '$tag'")
                     _uiState.update { it.copy(tags = it.tags + tag) }
                 }
             }
             is CreateChaosEvent.RemoveTag -> {
+                Timber.d("🗑️ Tag removed: '${event.tag}'")
                 _uiState.update { it.copy(tags = it.tags - event.tag) }
             }
             is CreateChaosEvent.ShareToggled -> {
+                Timber.d("🤝 Share to community toggled: ${event.share}")
                 _uiState.update { it.copy(shareToCommunity = event.share) }
             }
             is CreateChaosEvent.SaveChaosEntry -> {
+                Timber.d("💾 Save chaos entry event triggered!")
                 saveEntry()
             }
             is CreateChaosEvent.ClearError -> {
+                Timber.d("🧹 Error cleared")
                 _uiState.update { it.copy(error = null) }
             }
-
             is CreateChaosEvent.TriggerAnonymousAuth -> {
+                Timber.d("🔐 Trigger anonymous auth event")
                 triggerAnonymousAuth()
             }
             is CreateChaosEvent.RecheckAuthentication -> {
+                Timber.d("🔄 Recheck authentication event")
                 recheckAuthentication()
             }
         }
@@ -200,15 +207,7 @@ class CreateChaosViewModel @Inject constructor(
     private fun saveEntry() {
         val currentState = _uiState.value
         Timber.d("🎯 ==================== SAVE ENTRY STARTED ====================")
-        Timber.d("🎯 Title: '${currentState.title}'")
 
-        Timber.d("🎯 Save Entry Started")
-        Timber.d("  - Title: '${currentState.title}'")
-        Timber.d("  - Description length: ${currentState.description.length}")
-        Timber.d("  - Chaos Level: ${currentState.chaosLevel}")
-        Timber.d("  - Is Savable: ${currentState.isSavable}")
-
-        // Validation
         if (!currentState.isSavable) {
             val error = "Please fill in all required fields properly"
             Timber.w("❌ Validation failed: $error")
@@ -220,68 +219,74 @@ class CreateChaosViewModel @Inject constructor(
             _uiState.update { it.copy(isSaving = true, error = null) }
 
             try {
-                // Check authentication before saving
+                // Enhanced authentication check before saving
+                Timber.d("🔐 ==================== PRE-SAVE AUTHENTICATION CHECK ====================")
+
+                // Check Firebase Auth first
+                val firebaseUser = FirebaseAuth.getInstance().currentUser
+                if (firebaseUser == null) {
+                    val error = "Firebase authentication required"
+                    Timber.e("❌ No Firebase user found")
+                    _uiState.update { it.copy(isSaving = false, error = error) }
+                    return@launch
+                }
+
+                // Check Repository Auth (suspend function!)
                 val isAuthenticated = authRepository.isAuthenticated()
                 val currentUser = authRepository.getCurrentUser()
 
                 Timber.d("🔐 Pre-save Authentication Check:")
-                Timber.d("  - Is Authenticated: $isAuthenticated")
-                Timber.d("  - Current User ID: ${currentUser?.id ?: "NULL"}")
+                Timber.d("  - Firebase UID: ${firebaseUser.uid}")
+                Timber.d("  - Repository Is Authenticated: $isAuthenticated")
+                Timber.d("  - Repository Current User ID: ${currentUser?.id ?: "NULL"}")
 
                 if (!isAuthenticated || currentUser == null) {
                     val error = "You must be logged in to create chaos entries"
                     Timber.e("❌ Authentication failed during save")
-                    _uiState.update {
-                        it.copy(
-                            isSaving = false,
-                            error = error
-                        )
-                    }
+                    Timber.e("  - isAuthenticated: $isAuthenticated")
+                    Timber.e("  - currentUser: $currentUser")
+                    _uiState.update { it.copy(isSaving = false, error = error) }
                     return@launch
                 }
 
                 // Build ChaosEntry from current state
+                Timber.d("🏗️ ==================== BUILDING CHAOS ENTRY ====================")
                 val chaosEntry = buildChaosEntryFromState(currentState)
 
-                Timber.d("📝 Created ChaosEntry:")
-                Timber.d("  - ID: '${chaosEntry.id}'")
-                Timber.d("  - UserID: '${chaosEntry.userId}'")
-                Timber.d("  - Title: '${chaosEntry.title}'")
-                Timber.d("  - Description: '${chaosEntry.description.take(50)}...'")
-
-                // Call UseCase
-                Timber.d("🚀 Calling CreateChaosEntryUseCase...")
+                // Call UseCase with enhanced error handling
+                Timber.d("🚀 ==================== CALLING USE CASE ====================")
                 val result = createChaosEntryUseCase(chaosEntry)
 
                 result.fold(
                     onSuccess = { entryId ->
-                        Timber.d("✅ Chaos entry created successfully!")
-                        Timber.d("  - Entry ID: $entryId")
-                        _uiState.update {
-                            it.copy(
-                                isSaving = false,
-                                error = null
-                            )
-                        }
+                        Timber.d("✅ ==================== SUCCESS ====================")
+                        Timber.d("✅ Chaos entry created successfully! Entry ID: $entryId")
+                        _uiState.update { it.copy(isSaving = false, error = null) }
                         _saveSuccessEvent.emit(entryId)
                     },
                     onFailure = { exception ->
+                        Timber.e("❌ ==================== FAILURE ====================")
                         Timber.e(exception, "❌ Error creating chaos entry")
-                        _uiState.update {
-                            it.copy(
-                                isSaving = false,
-                                error = "Failed to save: ${exception.message}"
-                            )
+
+                        val userFriendlyError = when {
+                            exception.message?.contains("permission", ignoreCase = true) == true ->
+                                "Permission denied. Please check your account settings."
+                            exception.message?.contains("network", ignoreCase = true) == true ->
+                                "Network error. Please check your internet connection."
+                            exception.message?.contains("auth", ignoreCase = true) == true ->
+                                "Authentication error. Please try logging in again."
+                            else -> "Failed to save: ${exception.message}"
                         }
+
+                        _uiState.update { it.copy(isSaving = false, error = userFriendlyError) }
                     }
                 )
+
             } catch (e: Exception) {
+                Timber.e("💥 ==================== UNEXPECTED ERROR ====================")
                 Timber.e(e, "💥 Unexpected error in saveEntry")
                 _uiState.update {
-                    it.copy(
-                        isSaving = false,
-                        error = "An unexpected error occurred: ${e.message}"
-                    )
+                    it.copy(isSaving = false, error = "An unexpected error occurred: ${e.message}")
                 }
             }
         }
@@ -317,10 +322,12 @@ class CreateChaosViewModel @Inject constructor(
     }
 
     fun resetForm() {
+        Timber.d("🔄 Form reset")
         _uiState.value = CreateChaosUiState()
     }
 
     fun navigateBack() {
+        Timber.d("⬅️ Navigate back triggered")
         viewModelScope.launch {
             _navigateBackEvent.emit(Unit)
         }
@@ -328,6 +335,7 @@ class CreateChaosViewModel @Inject constructor(
 
     // Add method to trigger authentication check manually
     fun recheckAuthentication() {
+        Timber.d("🔄 Manual authentication recheck triggered")
         checkAuthenticationStatus()
     }
 
