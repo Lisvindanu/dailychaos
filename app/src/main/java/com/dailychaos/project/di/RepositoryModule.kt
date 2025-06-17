@@ -1,8 +1,12 @@
+// File: app/src/main/java/com/dailychaos/project/di/RepositoryModule.kt
 package com.dailychaos.project.di
 
 import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
+import com.dailychaos.project.data.remote.firebase.FirebaseFirestoreService
 import com.dailychaos.project.data.repository.AuthRepositoryImpl
+import com.dailychaos.project.data.repository.ChaosRepositoryImpl
 import com.dailychaos.project.domain.repository.AuthRepository
+import com.dailychaos.project.domain.repository.ChaosRepository
 import com.dailychaos.project.preferences.UserPreferences
 import com.dailychaos.project.util.ValidationUtil
 import dagger.Module
@@ -29,12 +33,12 @@ object RepositoryModule {
         return AuthRepositoryImpl(firebaseAuthService, validationUtil,userPreferences)
     }
 
-    // TODO: Add other repositories as needed
-    // @Provides
-    // @Singleton
-    // fun provideChaosRepository(...): ChaosRepository = ...
-
-    // @Provides
-    // @Singleton
-    // fun provideCommunityRepository(...): CommunityRepository = ...
+    @Provides
+    @Singleton
+    fun provideChaosRepository(
+        firestoreService: FirebaseFirestoreService,
+        authService: FirebaseAuthService // Diperlukan di ChaosRepositoryImpl
+    ): ChaosRepository {
+        return ChaosRepositoryImpl(firestoreService, authService)
+    }
 }

@@ -1,3 +1,4 @@
+// File: app/build.gradle.kts
 import java.util.Properties
 import java.io.FileInputStream
 
@@ -177,7 +178,7 @@ dependencies {
     // Firebase
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth.ktx)
-    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.firestore.ktx) // Dipastikan ada untuk Kotlin extensions
     implementation(libs.firebase.functions.ktx)
     implementation(libs.firebase.messaging.ktx)
     implementation(libs.firebase.storage.ktx)
@@ -185,6 +186,9 @@ dependencies {
     implementation(libs.firebase.crashlytics.ktx)
     implementation(libs.firebase.perf.ktx)
     implementation(libs.firebase.config.ktx)
+
+    // Logging - Timber
+    implementation("com.jakewharton.timber:timber:5.0.1")
 
     // Hilt - Dependency Injection
     implementation(libs.hilt.android)
