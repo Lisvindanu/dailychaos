@@ -3,17 +3,17 @@ package com.dailychaos.project.data.remote.firebase
 
 import com.dailychaos.project.data.remote.dto.request.ChaosEntryRequest
 import com.dailychaos.project.util.Constants
+import com.google.firebase.auth.FirebaseAuth  // ← Import yang missing
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.ktx.snapshots
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
-import timber.log.Timber // Import Timber for logging
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.datetime.Instant
-import com.google.firebase.Timestamp
-import com.google.firebase.firestore.ktx.snapshots // Tambahkan import ini
 
 /**
  * Firebase Firestore Service
@@ -36,10 +36,28 @@ class FirebaseFirestoreService @Inject constructor(
      */
     suspend fun createChaosEntry(userId: String, entry: ChaosEntryRequest): Result<String> {
         return try {
+            // 1. Validasi authentication terlebih dahulu
+            val currentUser = FirebaseAuth.getInstance().currentUser
+            if (currentUser == null) {
+                Timber.e("❌ No authenticated user found")
+                return Result.failure(Exception("User not authenticated"))
+            }
+
+            if (currentUser.uid != userId) {
+                Timber.e("❌ User ID mismatch: auth=${currentUser.uid}, param=$userId")
+                return Result.failure(Exception("User ID mismatch"))
+            }
+
+            Timber.d("🚀 Creating chaos entry for user: $userId")
+            Timber.d("🔐 Auth UID: ${currentUser.uid}")
+
             val entryRef = firestore.collection(Constants.COLLECTION_USERS)
                 .document(userId)
                 .collection(Constants.COLLECTION_CHAOS_ENTRIES)
                 .document() // Auto-generate ID
+
+            Timber.d("📍 Document path: ${entryRef.path}")
+            Timber.d("🆔 Entry ID: ${entryRef.id}")
 
             val data = hashMapOf(
                 "id" to entryRef.id,
@@ -85,11 +103,42 @@ class FirebaseFirestoreService @Inject constructor(
                 "updatedAt" to Timestamp.now()
             )
 
+            // Log data yang akan dikirim (tanpa field yang besar)
+            Timber.d("📦 Data to be sent - Title: ${entry.title}, Chaos Level: ${entry.chaosLevel}")
+
+            // Coba write ke Firestore
             entryRef.set(data).await()
-            Timber.d("Chaos entry created with ID: ${entryRef.id}")
+
+            Timber.d("✅ Chaos entry created successfully with ID: ${entryRef.id}")
             Result.success(entryRef.id)
+
         } catch (e: Exception) {
-            Timber.e(e, "Error creating chaos entry")
+            Timber.e(e, "❌ Error creating chaos entry")
+
+            // Log detail error
+            when (e) {
+                is com.google.firebase.firestore.FirebaseFirestoreException -> {
+                    Timber.e("🔥 Firestore error code: ${e.code}")
+                    Timber.e("🔥 Firestore error message: ${e.message}")
+
+                    // Handle specific Firestore errors
+                    when (e.code) {
+                        com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED -> {
+                            Timber.e("🚫 Permission denied - check Firestore rules")
+                        }
+                        com.google.firebase.firestore.FirebaseFirestoreException.Code.UNAUTHENTICATED -> {
+                            Timber.e("🔐 User not authenticated properly")
+                        }
+                        else -> {
+                            Timber.e("🔥 Other Firestore error: ${e.code}")
+                        }
+                    }
+                }
+                else -> {
+                    Timber.e("💥 General error: ${e.message}")
+                }
+            }
+
             Result.failure(e)
         }
     }
@@ -103,7 +152,7 @@ class FirebaseFirestoreService @Inject constructor(
             .document(userId)
             .collection(Constants.COLLECTION_CHAOS_ENTRIES)
             .document(entryId)
-            .snapshots() // Menggunakan snapshots() untuk mendapatkan Flow
+            .snapshots()
             .map { snapshot ->
                 snapshot.data
             }

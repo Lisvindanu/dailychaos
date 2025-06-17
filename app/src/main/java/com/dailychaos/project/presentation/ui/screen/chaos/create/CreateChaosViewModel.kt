@@ -16,6 +16,9 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import timber.log.Timber
 import javax.inject.Inject
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.tasks.await
+
 
 /**
  * CreateChaosViewModel - Enhanced dengan Debug Logging
@@ -39,27 +42,70 @@ class CreateChaosViewModel @Inject constructor(
 
     init {
         // Debug authentication status on init
+        Timber.d("🚀 CreateChaosViewModel INIT - Starting auth checks...")
         checkAuthenticationStatus()
+
     }
 
     private fun checkAuthenticationStatus() {
         viewModelScope.launch {
             try {
+                // 1. Check Repository Auth Status
                 val isAuthenticated = authRepository.isAuthenticated()
                 val currentUser = authRepository.getCurrentUser()
 
-                Timber.d("🔐 Authentication Status Check:")
+                Timber.d("🔐 Repository Authentication Status:")
                 Timber.d("  - Is Authenticated: $isAuthenticated")
                 Timber.d("  - Current User: ${currentUser?.id ?: "NULL"}")
                 Timber.d("  - User Display Name: ${currentUser?.displayName ?: "NULL"}")
                 Timber.d("  - User Email: ${currentUser?.email ?: "NULL"}")
                 Timber.d("  - Is Anonymous: ${currentUser?.isAnonymous ?: "NULL"}")
 
-                if (!isAuthenticated || currentUser == null) {
-                    _uiState.update {
-                        it.copy(error = "⚠️ Authentication Required: Please login first to create chaos entries")
+                // 2. Check Firebase Auth Directly
+                val firebaseAuth = FirebaseAuth.getInstance()
+                val firebaseUser = firebaseAuth.currentUser
+
+                Timber.d("🔥 Direct Firebase Auth Status:")
+                Timber.d("  - Firebase User: ${firebaseUser?.uid ?: "NULL"}")
+                Timber.d("  - Firebase Email: ${firebaseUser?.email ?: "NULL"}")
+                Timber.d("  - Firebase Display Name: ${firebaseUser?.displayName ?: "NULL"}")
+                Timber.d("  - Firebase Is Anonymous: ${firebaseUser?.isAnonymous ?: "NULL"}")
+                Timber.d("  - Firebase Provider Data: ${firebaseUser?.providerData?.map { it.providerId } ?: "NULL"}")
+
+                // 3. Check User Preferences
+                // Note: You might need to inject UserPreferences or access it through repository
+                // For now, we'll log what we have
+
+                // 4. Determine the actual issue
+                when {
+                    firebaseUser == null -> {
+                        val error = "🚫 NO FIREBASE AUTHENTICATION! User must login first."
+                        Timber.e(error)
+                        _uiState.update {
+                            it.copy(error = "Authentication Required: Please login first to create chaos entries")
+                        }
+                    }
+                    firebaseUser.isAnonymous && currentUser == null -> {
+                        val error = "🔄 Anonymous auth exists but no user profile found"
+                        Timber.w(error)
+                        _uiState.update {
+                            it.copy(error = "User profile not found. Please complete registration.")
+                        }
+                    }
+                    !isAuthenticated && firebaseUser != null -> {
+                        val error = "🔗 Firebase auth exists but repository thinks user is not authenticated"
+                        Timber.w(error)
+                        _uiState.update {
+                            it.copy(error = "Authentication state mismatch. Please try logging in again.")
+                        }
+                    }
+                    else -> {
+                        Timber.d("✅ Authentication looks good!")
+                        // Clear any existing error
+                        _uiState.update { it.copy(error = null) }
                     }
                 }
+
             } catch (e: Exception) {
                 Timber.e(e, "❌ Error checking authentication status")
                 _uiState.update {
@@ -68,6 +114,37 @@ class CreateChaosViewModel @Inject constructor(
             }
         }
     }
+
+    fun triggerAnonymousAuth() {
+        viewModelScope.launch {
+            try {
+                Timber.d("🚀 Triggering Anonymous Authentication...")
+                val firebaseAuth = FirebaseAuth.getInstance()
+                val result = firebaseAuth.signInAnonymously().await()
+                val user = result.user
+
+                if (user != null) {
+                    Timber.d("✅ Anonymous auth successful:")
+                    Timber.d("  - UID: ${user.uid}")
+                    Timber.d("  - Is Anonymous: ${user.isAnonymous}")
+
+                    // Recheck authentication status
+                    checkAuthenticationStatus()
+                } else {
+                    Timber.e("❌ Anonymous auth failed - no user returned")
+                    _uiState.update {
+                        it.copy(error = "Failed to authenticate anonymously")
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "❌ Error during anonymous authentication")
+                _uiState.update {
+                    it.copy(error = "Authentication failed: ${e.message}")
+                }
+            }
+        }
+    }
+
 
     fun onEvent(event: CreateChaosEvent) {
         when (event) {
@@ -110,11 +187,20 @@ class CreateChaosViewModel @Inject constructor(
             is CreateChaosEvent.ClearError -> {
                 _uiState.update { it.copy(error = null) }
             }
+
+            is CreateChaosEvent.TriggerAnonymousAuth -> {
+                triggerAnonymousAuth()
+            }
+            is CreateChaosEvent.RecheckAuthentication -> {
+                recheckAuthentication()
+            }
         }
     }
 
     private fun saveEntry() {
         val currentState = _uiState.value
+        Timber.d("🎯 ==================== SAVE ENTRY STARTED ====================")
+        Timber.d("🎯 Title: '${currentState.title}'")
 
         Timber.d("🎯 Save Entry Started")
         Timber.d("  - Title: '${currentState.title}'")

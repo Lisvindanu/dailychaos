@@ -125,29 +125,87 @@ fun CreateChaosScreen(
                         containerColor = MaterialTheme.colorScheme.errorContainer
                     )
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.padding(16.dp)
                     ) {
-                        Text(
-                            text = "⚠️",
-                            fontSize = 20.sp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = error,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(
-                            onClick = { viewModel.onEvent(CreateChaosEvent.ClearError) }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Dismiss")
+                            Text(
+                                text = "⚠️",
+                                fontSize = 20.sp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = error,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(
+                                onClick = { viewModel.onEvent(CreateChaosEvent.ClearError) }
+                            ) {
+                                Text("Dismiss")
+                            }
+                        }
+
+                        // Debug buttons - hanya muncul kalau ada authentication error
+                        if (error.contains("Authentication") || error.contains("login")) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { viewModel.recheckAuthentication() },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("🔄 Recheck Auth")
+                                }
+                                OutlinedButton(
+                                    onClick = { viewModel.triggerAnonymousAuth() },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("🔐 Try Anonymous")
+                                }
+                            }
                         }
                     }
                 }
             }
+
+
+//            uiState.error?.let { error ->
+//                Card(
+//                    modifier = Modifier.fillMaxWidth(),
+//                    colors = CardDefaults.cardColors(
+//                        containerColor = MaterialTheme.colorScheme.errorContainer
+//                    )
+//                ) {
+//                    Row(
+//                        modifier = Modifier.padding(16.dp),
+//                        verticalAlignment = Alignment.CenterVertically
+//                    ) {
+//                        Text(
+//                            text = "⚠️",
+//                            fontSize = 20.sp
+//                        )
+//                        Spacer(modifier = Modifier.width(8.dp))
+//                        Text(
+//                            text = error,
+//                            style = MaterialTheme.typography.bodyMedium,
+//                            color = MaterialTheme.colorScheme.onErrorContainer,
+//                            modifier = Modifier.weight(1f)
+//                        )
+//                        TextButton(
+//                            onClick = { viewModel.onEvent(CreateChaosEvent.ClearError) }
+//                        ) {
+//                            Text("Dismiss")
+//                        }
+//                    }
+//                }
+//            }
 
             // Motivational quote
             KonoSubaQuote(

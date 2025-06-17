@@ -39,6 +39,7 @@ import com.dailychaos.project.presentation.ui.screen.community.twins.ChaosTwinsS
 import com.dailychaos.project.presentation.ui.screen.home.HomeScreen
 import com.dailychaos.project.presentation.ui.screen.settings.SettingsScreen
 import com.dailychaos.project.presentation.ui.screen.splash.SplashScreen
+import timber.log.Timber
 
 /**
  * Main Navigation Graph for Daily Chaos
@@ -248,13 +249,20 @@ private fun ChaosNavHost(
 
         // Auth Graph
         composable(ChaosDestinations.LOGIN_ROUTE) {
+            Timber.d("🔐 LoginScreen COMPOSABLE CREATED")
             LoginScreen(
                 onLoginSuccess = {
+                    Timber.d("🏃 LoginScreen onLoginSuccess callback triggered!")
+                    Timber.d("🏃 About to navigate to HOME_ROUTE")
+
                     // Update MainViewModel auth state
                     mainViewModel?.refreshAuthState()
+
                     navController.navigate(ChaosDestinations.HOME_ROUTE) {
                         popUpTo(ChaosDestinations.LOGIN_ROUTE) { inclusive = true }
                     }
+
+                    Timber.d("🏃 Navigation to HOME_ROUTE completed")
                 },
                 onNavigateToRegister = {
                     navController.navigate(ChaosDestinations.REGISTER_ROUTE)
@@ -345,6 +353,9 @@ private fun ChaosNavHost(
         }
 
         composable(ChaosDestinations.CREATE_CHAOS_ROUTE) {
+            LaunchedEffect(Unit) {
+                Timber.d("🎯 CreateChaosScreen COMPOSABLE CREATED!")
+            }
             CreateChaosScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onChaosSaved = {

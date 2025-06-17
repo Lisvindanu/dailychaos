@@ -42,6 +42,7 @@ import com.dailychaos.project.presentation.theme.DailyChaosTheme
 import com.dailychaos.project.presentation.ui.component.ErrorMessage
 import com.dailychaos.project.presentation.ui.component.LoadingIndicator
 import kotlinx.coroutines.flow.collectLatest
+import timber.log.Timber
 
 @Composable
 fun LoginScreen(
@@ -56,7 +57,10 @@ fun LoginScreen(
 
     LaunchedEffect(Unit) {
         viewModel.loginSuccessEvent.collectLatest {
+            Timber.d("🎉 LOGIN SUCCESS EVENT RECEIVED IN LOGINSCREEN!")
+            Timber.d("🎉 About to call onLoginSuccess() callback")
             onLoginSuccess()
+            Timber.d("🎉 onLoginSuccess() callback called - should navigate to HOME now")
         }
     }
 

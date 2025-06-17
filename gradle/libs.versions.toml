@@ -33,6 +33,7 @@ kotlinxSerialization = "1.7.3"
 coroutines = "1.10.1"
 mockito = "5.15.2"
 mockitoKotlin = "5.4.0"
+timber = "5.0.1"
 truth = "1.4.4"
 robolectric = "4.13"
 archCoreTesting = "2.2.0"
@@ -126,6 +127,7 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 # Testing (Unit & Instrumented)
 mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
 mockito-kotlin = { group = "org.mockito.kotlin", name = "mockito-kotlin", version.ref = "mockitoKotlin" }
+timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 truth = { group = "com.google.truth", name = "truth", version.ref = "truth" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 arch-core-testing = { group = "androidx.arch.core", name = "core-testing", version.ref = "archCoreTesting" }
