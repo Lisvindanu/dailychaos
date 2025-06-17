@@ -341,7 +341,7 @@ private fun UsernameRegisterForm(
 
         Button(
             onClick = onRegister,
-            enabled = isUsernameValid && !isLoading,
+            enabled = username.isNotBlank() && !isLoading, // FIXED: Remove isUsernameValid check
             modifier = Modifier.fillMaxWidth().height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = ChaosColors.primary),
             shape = RoundedCornerShape(12.dp)

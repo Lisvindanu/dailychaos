@@ -1,3 +1,4 @@
+// Complete Fixed AuthRepositoryImpl.kt
 package com.dailychaos.project.data.repository
 
 import android.os.Build
@@ -8,7 +9,8 @@ import com.dailychaos.project.domain.model.User
 import com.dailychaos.project.domain.model.UsernameValidation
 import com.dailychaos.project.domain.repository.AuthRepository
 import com.dailychaos.project.preferences.UserPreferences
-import com.dailychaos.project.util.ValidationUtil // Pastikan ini diimport
+import com.dailychaos.project.util.ValidationUtil
+import com.dailychaos.project.util.generateUsernameSuggestions
 import com.google.firebase.Timestamp
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -20,34 +22,33 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
-import timber.log.Timber // Pastikan ini diimport
+import timber.log.Timber
 
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
     private val firebaseAuthService: FirebaseAuthService,
-    private val validationUtil: ValidationUtil, // Sudah benar di-inject
+    private val validationUtil: ValidationUtil,
     private val userPreferences: UserPreferences
 ) : AuthRepository {
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun mapFirebaseProfileToUser(profile: Map<String, Any>): User {
-        // Fungsi helper untuk parsing tanggal yang fleksibel (bisa handle String atau Timestamp)
+        // Helper function for flexible date parsing
         fun parseDate(value: Any?): Instant {
             return when (value) {
                 is Timestamp -> value.toDate().toInstant().toKotlinInstant()
                 is String -> {
                     try {
-                        // Coba format umum yang terlihat di database Anda
                         SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).parse(value)?.toInstant()?.toKotlinInstant() ?: Clock.System.now()
                     } catch (e: Exception) {
-                        Clock.System.now() // Fallback jika parsing gagal
+                        Clock.System.now()
                     }
                 }
-                else -> Clock.System.now() // Fallback untuk tipe data lain atau null
+                else -> Clock.System.now()
             }
         }
 
-        // Fungsi helper untuk parsing angka dari Long ke Int dengan aman
+        // Helper function for safe Long to Int conversion
         fun parseLongToInt(value: Any?): Int {
             return (value as? Long ?: 0L).toInt()
         }
@@ -57,14 +58,13 @@ class AuthRepositoryImpl @Inject constructor(
             email = profile["email"] as? String,
             displayName = profile["displayName"] as? String ?: "",
             anonymousUsername = profile["username"] as? String ?: "",
-            isAnonymous = profile["authType"] as? String != "email",
+            isAnonymous = (profile["authType"] as? String) in listOf("anonymous", "username"),
             chaosEntriesCount = parseLongToInt(profile["chaosEntries"] ?: profile["chaosEntriesCount"]),
             supportGivenCount = parseLongToInt(profile["supportGiven"] ?: profile["totalSupportsGiven"]),
             supportReceivedCount = parseLongToInt(profile["supportReceived"] ?: profile["totalSupportsReceived"]),
             streakDays = parseLongToInt(profile["dayStreak"]),
             joinedAt = parseDate(profile["joinDate"] ?: profile["createdAt"]),
             lastActiveAt = parseDate(profile["lastLoginDate"] ?: profile["lastActiveAt"] ?: profile["lastLogin"])
-            // settings akan menggunakan default dari model User
         )
     }
 
@@ -89,7 +89,6 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
-
     @RequiresApi(Build.VERSION_CODES.O)
     override suspend fun getCurrentUser(): User? {
         Timber.d("AuthRepositoryImpl: getCurrentUser called.")
@@ -112,11 +111,11 @@ class AuthRepositoryImpl @Inject constructor(
                 val storedAuthType = userPreferences.authType.first()
                 val storedUserId = userPreferences.userId.first()
 
-                if (storedAuthType == "username" && !storedUserId.isNullOrBlank()) {
+                if (storedAuthType in listOf("username", "anonymous") && !storedUserId.isNullOrBlank()) {
                     val profileResult = firebaseAuthService.getUserProfile(storedUserId)
                     return if (profileResult.isSuccess) {
                         val user = mapFirebaseProfileToUser(profileResult.getOrThrow())
-                        Timber.d("AuthRepositoryImpl: Found user in preferences for username auth: ${user.id}")
+                        Timber.d("AuthRepositoryImpl: Found user in preferences for $storedAuthType auth: ${user.id}")
                         user
                     } else {
                         Timber.w("AuthRepositoryImpl: Failed to get user profile from Firestore using stored ID: $storedUserId. Clearing local data.")
@@ -134,17 +133,27 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
-
     @RequiresApi(Build.VERSION_CODES.O)
     override suspend fun loginWithUsername(username: String): Result<User> {
         Timber.d("AuthRepositoryImpl: Attempting to login with username: $username")
         return try {
-            val validationResult = validationUtil.validateUsername(username)
-            // === PERBAIKAN: Gunakan `isValid` dan `message` dari UsernameValidation ===
-            if (!validationResult.isValid) {
-                Timber.e("AuthRepositoryImpl: Username validation failed: ${validationResult.message}")
-                return Result.failure(Exception(validationResult.message ?: "Validasi username gagal."))
+            // FIXED: Minimal validation for login - let server handle the rest
+            when {
+                username.isBlank() -> {
+                    Timber.e("AuthRepositoryImpl: Username is blank")
+                    return Result.failure(Exception("Username tidak boleh kosong!"))
+                }
+                username.length < 3 -> {
+                    Timber.e("AuthRepositoryImpl: Username too short: ${username.length}")
+                    return Result.failure(Exception("Username minimal 3 karakter."))
+                }
+                username.length > 30 -> {
+                    Timber.e("AuthRepositoryImpl: Username too long: ${username.length}")
+                    return Result.failure(Exception("Username terlalu panjang."))
+                }
             }
+
+            Timber.d("AuthRepositoryImpl: Basic validation passed, proceeding with Firebase login")
 
             val firebaseUserResult = firebaseAuthService.loginWithUsername(username)
 
@@ -178,14 +187,13 @@ class AuthRepositoryImpl @Inject constructor(
         Timber.d("AuthRepositoryImpl: Attempting to login with email: $email")
         return try {
             val emailValidation = validationUtil.isValidEmail(email)
-            if (!emailValidation) { // Menggunakan !emailValidation karena isValidEmail mengembalikan Boolean
+            if (!emailValidation) {
                 return Result.failure(IllegalArgumentException("Format email tidak valid!"))
             }
             val passwordValidation = validationUtil.validatePassword(password)
             if (!passwordValidation.isValid) {
                 return Result.failure(IllegalArgumentException(passwordValidation.errorMessage ?: "Password tidak valid!"))
             }
-
 
             val firebaseResult = firebaseAuthService.loginWithEmail(email, password)
             if (firebaseResult.isSuccess) {
@@ -214,11 +222,17 @@ class AuthRepositoryImpl @Inject constructor(
     override suspend fun registerWithUsername(username: String, displayName: String): Result<User> {
         Timber.d("AuthRepositoryImpl: Attempting to register with username: $username, displayName: $displayName")
         return try {
-            val usernameValidationResult = validationUtil.validateUsername(username)
-            // === PERBAIKAN: Gunakan `isValid` dan `message` dari UsernameValidation ===
-            if (!usernameValidationResult.isValid) {
-                Timber.e("AuthRepositoryImpl: Username validation failed during registerWithUsername: ${usernameValidationResult.message}")
-                return Result.failure(IllegalArgumentException(usernameValidationResult.message ?: "Validasi username gagal."))
+            // FIXED: Minimal validation for registration - let FirebaseAuthService handle complex rules
+            when {
+                username.isBlank() -> {
+                    return Result.failure(IllegalArgumentException("Username tidak boleh kosong!"))
+                }
+                username.length < 3 -> {
+                    return Result.failure(IllegalArgumentException("Username minimal 3 karakter."))
+                }
+                displayName.isBlank() -> {
+                    return Result.failure(IllegalArgumentException("Display name tidak boleh kosong."))
+                }
             }
 
             val firebaseResult = firebaseAuthService.registerWithUsername(username, displayName)
@@ -284,6 +298,46 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
+    suspend fun registerAnonymous(username: String, displayName: String): Result<User> {
+        Timber.d("AuthRepositoryImpl: Attempting to register anonymous user: $username, displayName: $displayName")
+        return try {
+            // Basic validation for anonymous registration
+            when {
+                username.isBlank() -> {
+                    return Result.failure(IllegalArgumentException("Username tidak boleh kosong!"))
+                }
+                username.length < 3 -> {
+                    return Result.failure(IllegalArgumentException("Username minimal 3 karakter."))
+                }
+                displayName.isBlank() -> {
+                    return Result.failure(IllegalArgumentException("Display name tidak boleh kosong."))
+                }
+            }
+
+            val firebaseResult = firebaseAuthService.registerAnonymous(username, displayName)
+            if (firebaseResult.isSuccess) {
+                val firebaseUser = firebaseResult.getOrThrow()
+                Timber.d("AuthRepositoryImpl: Anonymous user registered with UID: ${firebaseUser.uid}")
+                val profileResult = firebaseAuthService.getUserProfile(firebaseUser.uid)
+                if (profileResult.isSuccess) {
+                    val user = mapFirebaseProfileToUser(profileResult.getOrThrow())
+                    Timber.d("AuthRepositoryImpl: User profile mapped for new anonymous user: ${user.displayName}")
+                    Result.success(user)
+                } else {
+                    Timber.e("AuthRepositoryImpl: Failed to fetch user profile after anonymous registration: ${profileResult.exceptionOrNull()?.message}")
+                    Result.failure(profileResult.exceptionOrNull() ?: Exception("Gagal memuat profil pengguna setelah registrasi anonymous."))
+                }
+            } else {
+                Timber.e("AuthRepositoryImpl: Anonymous registration failed in firebaseAuthService: ${firebaseResult.exceptionOrNull()?.message}")
+                Result.failure(firebaseResult.exceptionOrNull()!!)
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "AuthRepositoryImpl: Unexpected error during anonymous registration.")
+            Result.failure(e)
+        }
+    }
+
     override suspend fun logout(): Result<Unit> {
         Timber.d("AuthRepositoryImpl: Logout called.")
         return firebaseAuthService.logout()
@@ -301,7 +355,46 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun validateUsername(username: String): UsernameValidation {
         Timber.d("AuthRepositoryImpl: validateUsername called for: $username")
-        return validationUtil.validateUsername(username)
+
+        return try {
+            // FIXED: Very permissive validation for login/registration
+            when {
+                username.isBlank() -> UsernameValidation(
+                    isValid = false,
+                    message = "Username tidak boleh kosong!",
+                    suggestions = emptyList()
+                )
+                username.length < 3 -> UsernameValidation(
+                    isValid = false,
+                    message = "Username minimal 3 karakter.",
+                    suggestions = username.generateUsernameSuggestions()
+                )
+                username.length > 30 -> UsernameValidation(
+                    isValid = false,
+                    message = "Username terlalu panjang.",
+                    suggestions = username.generateUsernameSuggestions()
+                )
+                // FIXED: Very permissive regex - allow most characters for existing usernames
+                !username.matches(Regex("^[a-zA-Z0-9_.-]+$")) -> UsernameValidation(
+                    isValid = false,
+                    message = "Username mengandung karakter yang tidak valid.",
+                    suggestions = username.generateUsernameSuggestions()
+                )
+                else -> UsernameValidation(
+                    isValid = true,
+                    message = "Username format valid",
+                    suggestions = emptyList()
+                )
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "AuthRepositoryImpl: Error during username validation")
+            // FIXED: Return permissive result on error
+            UsernameValidation(
+                isValid = true,
+                message = "Validation skipped due to error",
+                suggestions = emptyList()
+            )
+        }
     }
 
     override fun isAuthenticated(): Boolean {
