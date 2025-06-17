@@ -1,6 +1,8 @@
 // File: app/src/main/java/com/dailychaos/project/data/repository/ChaosRepositoryImpl.kt
 package com.dailychaos.project.data.repository
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
 import com.dailychaos.project.data.remote.firebase.FirebaseFirestoreService
 import com.dailychaos.project.data.mapper.toChaosEntry
@@ -124,6 +126,7 @@ class ChaosRepositoryImpl @Inject constructor(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun getChaosEntry(userId: String, entryId: String): Flow<ChaosEntry?> {
         Timber.d("📖 Getting chaos entry: userId=$userId, entryId=$entryId")
         return firestoreService.getChaosEntry(userId, entryId).map { map ->
@@ -133,6 +136,7 @@ class ChaosRepositoryImpl @Inject constructor(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun getAllChaosEntries(userId: String): Flow<List<ChaosEntry>> {
         Timber.d("📚 Getting all chaos entries for user: $userId")
         return firestoreService.getChaosEntries(userId).map { listMap ->
@@ -142,6 +146,7 @@ class ChaosRepositoryImpl @Inject constructor(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun getRecentChaosEntries(userId: String, limit: Int): Flow<List<ChaosEntry>> {
         Timber.d("📚 Getting recent chaos entries for user: $userId, limit: $limit")
         return firestoreService.getChaosEntries(userId, limit.toLong()).map { listMap ->
@@ -151,6 +156,7 @@ class ChaosRepositoryImpl @Inject constructor(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override suspend fun updateChaosEntry(userId: String, entry: ChaosEntry): Result<Unit> {
         return try {
             Timber.d("✏️ Updating chaos entry: userId=$userId, entryId=${entry.id}")

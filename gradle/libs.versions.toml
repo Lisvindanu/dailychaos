@@ -18,6 +18,7 @@ composeBom = "2025.05.01"
 composeCompiler = "1.5.3"
 hilt = "2.56.1" # Hilt version
 hiltNavigationCompose = "1.2.0"
+material = "1.8.2"
 mockk = "1.13.16"
 mockkAgent = "1.13.16"
 mockkAndroid = "1.13.8"
@@ -52,6 +53,7 @@ coreSplashscreen = "1.0.1"
 androidx-activity-compose-v182 = { module = "androidx.activity:activity-compose", version.ref = "activityComposeVersion" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-material = { module = "androidx.compose.material:material" }
 androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 
 # JUnit for local unit tests
@@ -94,6 +96,7 @@ hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-com
 hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
 
 # Networking
+material = { module = "androidx.compose.material:material", version.ref = "material" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 mockk-agent = { module = "io.mockk:mockk-agent", version.ref = "mockkAgent" }
 mockk-android = { module = "io.mockk:mockk-android", version.ref = "mockkAndroid" }

@@ -2,7 +2,7 @@ package com.dailychaos.project.presentation.theme
 
 import androidx.compose.ui.graphics.Color
 
- //KonoSuba Inspired Colors
+//KonoSuba Inspired Colors
 val ChaosBlue = Color(0xFF2196F3)        // Aqua's signature blue
 val ChaosBlueLight = Color(0xFF64B5F6)
 val ChaosBlueDark = Color(0xFF1976D2)
@@ -61,4 +61,3 @@ val OldPaperHighlight = Color(0xFFFFF8E1) // Warna permukaan yang sedikit lebih 
 // Untuk saat ini kita fokus pada Light Mode sesuai gambar
 val DarkParchment = Color(0xFFD7CCC8)
 val DarkInk = Color(0xFF3E2723)
-
