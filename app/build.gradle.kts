@@ -232,6 +232,8 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
+    implementation("com.google.firebase:firebase-appcheck-playintegrity") // For production builds (Play Integrity)
+    debugImplementation("com.google.firebase:firebase-appcheck-debug") // For debug builds (Debug Provider)
     androidTestImplementation(libs.androidx.ui.test.junit4)
     androidTestImplementation(libs.androidx.ui.test.junit4.android)
     androidTestImplementation(libs.kotlinx.coroutines.test)

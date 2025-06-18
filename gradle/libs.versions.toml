@@ -14,7 +14,7 @@ junitVersion = "1.2.1" # For Android instrumented tests (androidx.test.ext:junit
 espressoCore = "3.6.1" # For Android instrumented tests (androidx.test.espresso:espresso-core)
 lifecycleRuntimeKtx = "2.9.0"
 activityCompose = "1.10.1"
-composeBom = "2025.05.01"
+composeBom = "2025.06.00"
 composeCompiler = "1.5.3"
 hilt = "2.56.1" # Hilt version
 hiltNavigationCompose = "1.2.0"
@@ -61,6 +61,8 @@ coil-compose-v250 = { module = "io.coil-kt:coil-compose", version.ref = "coilCom
 coil-network-okhttp = { module = "io.coil-kt:coil-network-okhttp", version.ref = "coilNetworkOkhttp" }
 converter-gson-v290 = { module = "com.squareup.retrofit2:converter-gson", version.ref = "converterGson" }
 core-ktx = { module = "androidx.test:core-ktx", version.ref = "coreKtxVersion" }
+firebase-appcheck-debug = { module = "com.google.firebase:firebase-appcheck-debug" }
+firebase-appcheck-playintegrity = { module = "com.google.firebase:firebase-appcheck-playintegrity" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 # AndroidX Test libraries for instrumented tests
