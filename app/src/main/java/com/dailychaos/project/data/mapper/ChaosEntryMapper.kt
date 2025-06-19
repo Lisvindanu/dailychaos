@@ -10,6 +10,10 @@ import com.google.firebase.Timestamp
 import kotlinx.datetime.Instant
 import kotlinx.datetime.toJavaInstant
 import kotlinx.datetime.toKotlinInstant
+import timber.log.Timber
+import java.time.format.DateTimeFormatter
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 
 /**
  * Mapper untuk ChaosEntry
@@ -25,12 +29,50 @@ fun Map<String, Any>.toChaosEntry(): ChaosEntry {
         chaosLevel = (this["chaosLevel"] as? Long)?.toInt() ?: 5, // Firestore reads Int as Long
         miniWins = this["miniWins"] as? List<String> ?: emptyList(),
         tags = this["tags"] as? List<String> ?: emptyList(),
-        createdAt = (this["createdAt"] as? Timestamp)?.toDate()?.toInstant()?.toKotlinInstant() ?: Instant.DISTANT_PAST,
-        updatedAt = (this["updatedAt"] as? Timestamp)?.toDate()?.toInstant()?.toKotlinInstant() ?: Instant.DISTANT_PAST,
+        createdAt = parseFirestoreDateTime(this["createdAt"]),
+        updatedAt = parseFirestoreDateTime(this["updatedAt"]),
         isSharedToCommunity = this["shareToFeed"] as? Boolean ?: false, // Match "shareToFeed" from Firestore
         syncStatus = SyncStatus.SYNCED, // As it's from Firebase, assume synced
         localId = 0L // Not applicable for remote mapping
     )
+}
+
+/**
+ * Parse Firestore datetime yang bisa berupa Timestamp atau String
+ */
+@RequiresApi(Build.VERSION_CODES.O)
+private fun parseFirestoreDateTime(value: Any?): Instant {
+    return when (value) {
+        is Timestamp -> {
+            // Jika Firestore mengembalikan Timestamp object
+            value.toDate().toInstant().toKotlinInstant()
+        }
+        is String -> {
+            // Jika Firestore mengembalikan String (seperti "2025-06-19 18:50:16")
+            try {
+                // Parse string datetime format: "yyyy-MM-dd HH:mm:ss"
+                val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                val localDateTime = LocalDateTime.parse(value, formatter)
+                localDateTime.toInstant(ZoneOffset.UTC).toKotlinInstant()
+            } catch (e: Exception) {
+                Timber.w("Failed to parse datetime string: $value, using DISTANT_PAST")
+                Instant.DISTANT_PAST
+            }
+        }
+        is Long -> {
+            // Jika Firestore mengembalikan timestamp sebagai Long (epoch seconds)
+            try {
+                Instant.fromEpochSeconds(value)
+            } catch (e: Exception) {
+                Timber.w("Failed to parse timestamp long: $value, using DISTANT_PAST")
+                Instant.DISTANT_PAST
+            }
+        }
+        else -> {
+            Timber.w("Unknown datetime format: $value (${value?.javaClass?.simpleName}), using DISTANT_PAST")
+            Instant.DISTANT_PAST
+        }
+    }
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
