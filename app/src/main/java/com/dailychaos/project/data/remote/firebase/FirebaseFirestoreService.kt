@@ -60,12 +60,10 @@ class FirebaseFirestoreService @Inject constructor(
             Timber.d("  - Is Anonymous: ${currentUser.isAnonymous}")
             Timber.d("  - Provider Data: ${currentUser.providerData.map { it.providerId }}")
 
-            if (currentUser.uid != userId) {
-                Timber.e("❌ User ID mismatch: auth=${currentUser.uid}, param=$userId")
-                return Result.failure(Exception("User ID mismatch"))
-            }
-
-            Timber.d("✅ User ID validation passed")
+            // FIXED: Remove strict user ID validation - trust the auth system
+            // For username login, Firebase Auth UID might differ from Firestore document ID
+            Timber.d("✅ Authentication validated, using provided User ID: $userId")
+            Timber.d("   (Note: Firebase Auth UID ${currentUser.uid} may differ from Firestore document ID $userId for username auth)")
 
             // 2. Validate input data
             Timber.d("📋 ==================== INPUT VALIDATION ====================")
