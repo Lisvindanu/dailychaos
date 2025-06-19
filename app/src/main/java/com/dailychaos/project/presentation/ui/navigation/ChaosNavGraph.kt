@@ -1,11 +1,14 @@
 // File: app/src/main/java/com/dailychaos/project/presentation/ui/navigation/ChaosNavGraph.kt
 package com.dailychaos.project.presentation.ui.navigation
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.*
@@ -39,6 +42,7 @@ import com.dailychaos.project.presentation.ui.screen.community.twins.ChaosTwinsS
 import com.dailychaos.project.presentation.ui.screen.home.HomeScreen
 import com.dailychaos.project.presentation.ui.screen.settings.SettingsScreen
 import com.dailychaos.project.presentation.ui.screen.splash.SplashScreen
+import com.dailychaos.project.presentation.ui.screen.community.detail.CommunityPostDetailScreen
 import timber.log.Timber
 
 /**
@@ -46,6 +50,7 @@ import timber.log.Timber
  *
  * "Navigation yang clean seperti party formation Kazuma!"
  */
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun ChaosNavGraph(
     navController: NavHostController,
@@ -64,6 +69,7 @@ fun ChaosNavGraph(
         currentRoute == ChaosDestinations.SETTINGS_ROUTE -> false
         currentRoute == ChaosDestinations.CREATE_CHAOS_ROUTE -> false
         currentRoute?.startsWith(ChaosDestinations.CHAOS_DETAIL_ROUTE) == true -> false
+        currentRoute?.startsWith(ChaosDestinations.COMMUNITY_POST_ROUTE) == true -> false // ADDED
         currentRoute?.startsWith(ChaosDestinations.EDIT_CHAOS_ROUTE) == true -> false
         currentRoute == ChaosDestinations.CHAOS_TWINS_ROUTE -> false
         else -> true
@@ -204,6 +210,7 @@ private fun ChaosBottomNavItem(
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 private fun ChaosNavHost(
     navController: NavHostController,
@@ -305,6 +312,7 @@ private fun ChaosNavHost(
                     navController.navigate(ChaosDestinations.COMMUNITY_ROUTE)
                 },
                 onNavigateToEntry = { entryId ->
+                    // FIXED: Personal chaos entries from home
                     navController.navigate(ChaosDestinations.chaosDetailRoute(entryId))
                 },
                 konoSubaApiService = konoSubaApiService // ADDED: Pass API service to HomeScreen
@@ -315,6 +323,7 @@ private fun ChaosNavHost(
             ChaosHistoryScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToEntry = { entryId ->
+                    // FIXED: Personal chaos entries from journal
                     navController.navigate(ChaosDestinations.chaosDetailRoute(entryId))
                 }
             )
@@ -323,7 +332,8 @@ private fun ChaosNavHost(
         composable(ChaosDestinations.COMMUNITY_ROUTE) {
             CommunityFeedScreen(
                 onNavigateToPost = { postId ->
-                    navController.navigate(ChaosDestinations.chaosDetailRoute(postId))
+                    // FIXED: Community posts should use community post route
+                    navController.navigate(ChaosDestinations.communityPostRoute(postId))
                 },
                 onNavigateToTwins = {
                     navController.navigate(ChaosDestinations.CHAOS_TWINS_ROUTE)
@@ -365,6 +375,7 @@ private fun ChaosNavHost(
             )
         }
 
+        // PERSONAL CHAOS ENTRY DETAIL (for user's own entries)
         composable(
             route = ChaosDestinations.CHAOS_DETAIL_WITH_ID,
             arguments = listOf(
@@ -372,10 +383,31 @@ private fun ChaosNavHost(
             )
         ) { backStackEntry ->
             val entryId = backStackEntry.arguments?.getString(ChaosDestinations.Args.ENTRY_ID) ?: ""
+            Timber.d("🔍 PERSONAL Chaos Detail Screen - Entry ID: $entryId")
             ChaosDetailScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToEdit = { id ->
                     navController.navigate(ChaosDestinations.editChaosRoute(id))
+                }
+            )
+        }
+
+        // COMMUNITY POST DETAIL (for community posts) - NEW!
+        composable(
+            route = ChaosDestinations.COMMUNITY_POST_WITH_ID,
+            arguments = listOf(
+                navArgument(ChaosDestinations.Args.POST_ID) { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val postId = backStackEntry.arguments?.getString(ChaosDestinations.Args.POST_ID) ?: ""
+            Timber.d("🌍 COMMUNITY Post Detail Screen - Post ID: $postId")
+
+            CommunityPostDetailScreen(
+                postId = postId,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToSupport = {
+                    // Add support navigation if needed
+                    Timber.d("📤 Support post: $postId")
                 }
             )
         }
@@ -400,9 +432,67 @@ private fun ChaosNavHost(
             ChaosTwinsScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToPost = { postId ->
-                    navController.navigate(ChaosDestinations.chaosDetailRoute(postId))
+                    // FIXED: Navigate to community post route
+                    navController.navigate(ChaosDestinations.communityPostRoute(postId))
                 }
             )
+        }
+    }
+}
+
+// TEMPORARY PLACEHOLDER - Create this screen based on ChaosDetailScreen
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CommunityPostDetailScreen(
+    postId: String,
+    onNavigateBack: () -> Unit,
+    onNavigateToSupport: () -> Unit
+) {
+    // For now, use the existing ChaosDetailScreen as a temporary solution
+    // But pass a flag to indicate it's a community post
+    Timber.d("🌍 CommunityPostDetailScreen called with postId: $postId")
+
+    // TODO: Create proper CommunityPostDetailScreen
+    // For now, show a simple error message
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Community Post") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "Community Post Detail",
+                style = MaterialTheme.typography.headlineMedium
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "Post ID: $postId",
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "This will load community post data from the community_feed collection.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(onClick = onNavigateToSupport) {
+                Text("Give Support")
+            }
         }
     }
 }
