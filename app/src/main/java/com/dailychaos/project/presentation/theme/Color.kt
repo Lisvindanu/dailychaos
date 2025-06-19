@@ -70,5 +70,5 @@ val ErrorRed = Color(0xFFEF5350)         // Merah (Megumin)
 val WarningOrange = Color(0xFFFF8A65)    // Oranye untuk peringatan
 
 val LightGray = Color(0xFFB0BEC5)       // Abu-abu terang untuk elemen non-aktif
-val DarkGray = Color(0xFF455A64)        // Abu-abu gelap
+val DarkGray = Color(0xFF455A64)
 
