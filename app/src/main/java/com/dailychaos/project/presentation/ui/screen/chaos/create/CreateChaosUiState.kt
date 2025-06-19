@@ -32,5 +32,7 @@ sealed class CreateChaosEvent {
     data class RemoveTag(val tag: String) : CreateChaosEvent()
     data class ShareToggled(val share: Boolean) : CreateChaosEvent()
     object SaveChaosEntry : CreateChaosEvent()
+    object TriggerAnonymousAuth : CreateChaosEvent()
+    object RecheckAuthentication : CreateChaosEvent()
     object ClearError : CreateChaosEvent()
 }

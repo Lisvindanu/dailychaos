@@ -11,10 +11,12 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 /**
- * UseCase Dependency Injection Module
+ * UseCase Dependency Injection Module - Chaos Use Cases Only
  *
- * "UseCase provides - mendaftarkan semua use case agar bisa di-inject"
+ * "UseCase provides untuk chaos entries - Auth use cases ada di AuthUseCaseModule"
  */
+
+
 @Module
 @InstallIn(SingletonComponent::class)
 object UseCaseModule {

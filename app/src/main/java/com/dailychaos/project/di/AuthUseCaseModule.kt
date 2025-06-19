@@ -1,3 +1,4 @@
+// File: app/src/main/java/com/dailychaos/project/di/AuthUseCaseModule.kt
 package com.dailychaos.project.di
 
 import com.dailychaos.project.domain.repository.AuthRepository
@@ -51,6 +52,12 @@ object AuthUseCaseModule {
 
     @Provides
     @Singleton
+    fun provideRegisterAnonymousUseCase(
+        authRepository: AuthRepository
+    ): RegisterAnonymousUseCase = RegisterAnonymousUseCase(authRepository)
+
+    @Provides
+    @Singleton
     fun provideValidateUsernameUseCase(
         authRepository: AuthRepository
     ): ValidateUsernameUseCase = ValidateUsernameUseCase(authRepository)
@@ -87,29 +94,55 @@ object AuthUseCaseModule {
 
     @Provides
     @Singleton
+    fun provideGetUserProfileUseCase(
+        authRepository: AuthRepository
+    ): GetUserProfileUseCase = GetUserProfileUseCase(authRepository)
+
+    @Provides
+    @Singleton
+    fun provideCheckUsernameAvailabilityUseCase(
+        authRepository: AuthRepository
+    ): CheckUsernameAvailabilityUseCase = CheckUsernameAvailabilityUseCase(authRepository)
+
+    @Provides
+    @Singleton
+    fun provideGenerateRandomUsernameUseCase(
+        authRepository: AuthRepository
+    ): GenerateRandomUsernameUseCase = GenerateRandomUsernameUseCase(authRepository)
+
+    @Provides
+    @Singleton
     fun provideAuthUseCases(
         getAuthState: GetAuthStateUseCase,
         loginWithUsername: LoginWithUsernameUseCase,
         loginWithEmail: LoginWithEmailUseCase,
         registerWithUsername: RegisterWithUsernameUseCase,
         registerWithEmail: RegisterWithEmailUseCase,
+        registerAnonymous: RegisterAnonymousUseCase,
         validateUsername: ValidateUsernameUseCase,
         logout: LogoutUseCase,
         getCurrentUser: GetCurrentUserUseCase,
         isAuthenticated: IsAuthenticatedUseCase,
         updateUserProfile: UpdateUserProfileUseCase,
-        deleteAccount: DeleteAccountUseCase
+        deleteAccount: DeleteAccountUseCase,
+        getUserProfile: GetUserProfileUseCase,
+        checkUsernameAvailability: CheckUsernameAvailabilityUseCase,
+        generateRandomUsername: GenerateRandomUsernameUseCase
     ): AuthUseCases = AuthUseCases(
         getAuthState = getAuthState,
         loginWithUsername = loginWithUsername,
         loginWithEmail = loginWithEmail,
         registerWithUsername = registerWithUsername,
         registerWithEmail = registerWithEmail,
+        registerAnonymous = registerAnonymous,
         validateUsername = validateUsername,
         logout = logout,
         getCurrentUser = getCurrentUser,
         isAuthenticated = isAuthenticated,
         updateUserProfile = updateUserProfile,
-        deleteAccount = deleteAccount
+        deleteAccount = deleteAccount,
+        getUserProfile = getUserProfile,
+        checkUsernameAvailability = checkUsernameAvailability,
+        generateRandomUsername = generateRandomUsername
     )
 }

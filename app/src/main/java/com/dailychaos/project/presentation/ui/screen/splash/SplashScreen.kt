@@ -26,13 +26,18 @@ import com.dailychaos.project.data.remote.api.KonoSubaApiService
 import com.dailychaos.project.domain.model.CharacterCard
 import kotlinx.coroutines.delay
 
+// Impor yang diperlukan untuk ViewModel (HiltViewModel atau viewModel())
+import androidx.hilt.navigation.compose.hiltViewModel // Paling umum digunakan dengan Hilt
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SplashScreen(
     onNavigateToOnboarding: () -> Unit,
     onNavigateToHome: () -> Unit,
     isUserLoggedIn: Boolean = false,
-    apiService: KonoSubaApiService? = null
+    apiService: KonoSubaApiService? = null,
+    // Mengambil instance SplashViewModel
+    viewModel: SplashViewModel = hiltViewModel() // Menggunakan hiltViewModel() jika Anda menggunakan Hilt
 ) {
     var showContent by remember { mutableStateOf(false) }
     var showCharacterImage by remember { mutableStateOf(false) }
@@ -54,7 +59,7 @@ fun SplashScreen(
         }
     }
 
-    // Initial load sequence - SIMPLIFIED
+    // Initial load sequence
     LaunchedEffect(Unit) {
         delay(500)
         showContent = true
@@ -69,9 +74,6 @@ fun SplashScreen(
         delay(2000)
         showButton = true
     }
-
-    // REMOVED: Auto-rotate quotes yang bikin conflict
-    // Sekarang quote akan tetap tampil dan tidak hilang
 
     Box(
         modifier = Modifier
@@ -161,7 +163,7 @@ fun SplashScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Character Image - STABLE VERSION
+            // Character Image
             AnimatedVisibility(
                 visible = showCharacterImage,
                 enter = fadeIn(animationSpec = tween(600)) + scaleIn(
@@ -223,7 +225,7 @@ fun SplashScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Quote Card - STABLE VERSION (no auto-rotate)
+            // Quote Card
             AnimatedVisibility(
                 visible = showQuote,
                 enter = fadeIn(animationSpec = tween(800)) + slideInVertically(
@@ -362,6 +364,27 @@ fun SplashScreen(
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
+
+                    // TOMBOL DEBUG BARU UNTUK MIGRASI
+                    Button(
+                        onClick = { viewModel.forceRunMigration() }, // Memanggil fungsi di ViewModel
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Magenta.copy(alpha = 0.7f) // Warna berbeda agar jelas
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth(0.8f) // Sesuaikan lebar agar lebih menonjol
+                            .height(48.dp) // Sesuaikan tinggi agar mudah diakses
+                    ) {
+                        Text(
+                            text = "Run Migration (DEBUG)",
+                            fontSize = 14.sp, // Ukuran font lebih besar
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                    // ===========================================
+
+                    Spacer(modifier = Modifier.height(8.dp)) // Tambahkan spasi setelah tombol migrasi
 
                     Text(
                         text = "Ready to track your daily chaos?",

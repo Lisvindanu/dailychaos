@@ -6,6 +6,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.*
@@ -16,88 +17,246 @@ import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
+import timber.log.Timber
 
 /**
- * Firebase Authentication Service
- * "Bahkan petualang anonim butuh registrasi party yang benar!"
+ * Firebase Authentication Service - SIMPLIFIED SINGLE COLLECTION
+ * "Satu collection users aja, simple dan efektif!"
  */
 @Singleton
 class FirebaseAuthService @Inject constructor(
     private val firebaseAuth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
-    private val userPreferences: UserPreferences
+    private val userPreferences: UserPreferences,
+    private val functions: FirebaseFunctions
 ) {
 
-    /**
-     * Get current authenticated user
-     */
     val currentUser: FirebaseUser?
         get() = firebaseAuth.currentUser
 
-    /**
-     * Check if user is authenticated
-     */
     fun isAuthenticated(): Boolean = currentUser != null
 
     /**
-     * Register with username (anonymous auth + username validation)
-     * "Selamat datang di party! Pilih nama petualangmu dengan bijak!"
+     * Register with username - Simple approach with single collection
      */
     suspend fun registerWithUsername(username: String, displayName: String): Result<FirebaseUser> {
         return try {
-            // Validate username first
-            val validationResult = validateUsername(username)
-            if (!validationResult.isSuccess) {
-                return Result.failure(validationResult.exceptionOrNull()!!)
+            val trimmedUsername = username.trim()
+            val trimmedDisplayName = displayName.trim().ifBlank { trimmedUsername }
+
+            Timber.d("🎭 REGISTER with username: '$trimmedUsername', displayName: '$trimmedDisplayName'")
+
+            // Basic validation
+            if (trimmedUsername.isBlank()) {
+                return Result.failure(Exception("Username tidak boleh kosong!"))
+            }
+            if (trimmedUsername.length < 3) {
+                return Result.failure(Exception("Username minimal 3 karakter."))
+            }
+            if (trimmedUsername.length > 30) {
+                return Result.failure(Exception("Username maksimal 30 karakter."))
             }
 
-            // Check username availability
-            val isAvailable = checkUsernameAvailability(username)
-            if (!isAvailable) {
-                return Result.failure(Exception("Username '$username' sudah dipakai petualang lain! Coba '${username}SangPahlawan'."))
+            // Check if username already exists in users collection
+            val existingUser = firestore.collection("users")
+                .whereEqualTo("usernameLower", trimmedUsername.lowercase())
+                .limit(1)
+                .get()
+                .await()
+
+            if (!existingUser.isEmpty) {
+                return Result.failure(Exception("Username '$trimmedUsername' sudah dipakai!"))
             }
 
-            // Sign in anonymously first
+            // Create Firebase Auth user
             val authResult = firebaseAuth.signInAnonymously().await()
-            val user = authResult.user ?: throw Exception("Pendaftaran ke Guild gagal. Mungkin servernya lagi diserang pasukan Raja Iblis. Coba lagi!")
+            val user = authResult.user ?: throw Exception("Failed to create user")
 
-            // Create user profile with username and display name
-            val profileResult = createUserProfile(
-                userId = user.uid,
-                username = username,
-                displayName = displayName.ifBlank { username },
-                email = null,
-                authType = "username"
+            // Create user profile in Firestore
+            val currentDate = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+
+            val userProfile = mapOf(
+                "uid" to user.uid,
+                "userId" to user.uid,
+                "username" to trimmedUsername,
+                "usernameLower" to trimmedUsername.lowercase(), // For case-insensitive search
+                "displayName" to trimmedDisplayName,
+                "authType" to "username",
+                "bio" to "",
+                "email" to null,
+                "favoriteKonoSubaCharacter" to "",
+                "favoriteQuote" to "",
+                "profilePicture" to null,
+                "profileVersion" to 1,
+                "partyRole" to "Newbie Adventurer",
+                "chaosLevel" to 1,
+                "chaosEntries" to 0,
+                "chaosEntriesCount" to 0,
+                "totalEntries" to 0,
+                "dayStreak" to 0,
+                "longestStreak" to 0,
+                "streakDays" to 0,
+                "achievements" to emptyList<String>(),
+                "supportGiven" to 0,
+                "supportReceived" to 0,
+                "totalSupportGiven" to 0,
+                "totalSupportReceived" to 0,
+                "totalSupportsGiven" to 0,
+                "totalSupportsReceived" to 0,
+                "isActive" to true,
+                "isAnonymous" to false,
+                "settings" to mapOf(
+                    "notificationsEnabled" to true,
+                    "konoSubaQuotesEnabled" to true,
+                    "anonymousMode" to false,
+                    "reminderTime" to "20:00",
+                    "shareByDefault" to false,
+                    "theme" to "system",
+                    "showChaosLevel" to true
+                ),
+                "createdAt" to currentDate,
+                "joinDate" to currentDate,
+                "lastActiveAt" to currentDate,
+                "lastLogin" to currentDate,
+                "lastLoginDate" to currentDate
             )
 
-            if (profileResult.isSuccess) {
-                // Update user preferences
-                userPreferences.setUserId(user.uid)
-                userPreferences.setAnonymousUsername(username)
-                userPreferences.setDisplayName(displayName.ifBlank { username })
+            firestore.collection("users")
+                .document(user.uid)
+                .set(userProfile)
+                .await()
 
-                Result.success(user)
-            } else {
-                // Rollback: delete user if profile creation fails
-                user.delete().await()
-                Result.failure(profileResult.exceptionOrNull() ?: Exception("Gagal membuat profil adventurer-mu. Ini lebih merepotkan dari mengurus Aqua."))
-            }
-        } catch (e: FirebaseNetworkException) {
-            Result.failure(Exception("Koneksi ke Guild (server) terputus! Mungkin ada serangan Destroyer di dekat sini. Cek koneksimu."))
+            updateUserPreferences(user.uid, trimmedUsername, trimmedDisplayName, "username")
+
+            Timber.d("🎉 Registration successful! UID: ${user.uid}")
+            Result.success(user)
+
         } catch (e: Exception) {
-            Result.failure(Exception("Terjadi error tak terduga! Ini lebih kacau dari saat Darkness jadi tameng. Coba lagi sebentar."))
+            Timber.e(e, "❌ Registration failed")
+            val errorMessage = when {
+                e.message?.contains("already exists") == true -> "Username sudah dipakai!"
+                e.message?.contains("network") == true -> "Koneksi bermasalah. Cek internet!"
+                else -> "Registrasi gagal: ${e.message}"
+            }
+            Result.failure(Exception(errorMessage))
         }
     }
 
     /**
-     * Register with email and password
-     * "Bergabunglah dengan party menggunakan kredensial lengkap!"
+     * Login with username - Simple lookup in users collection
+     */
+    suspend fun loginWithUsername(username: String): Result<FirebaseUser> {
+        return try {
+            val trimmedUsername = username.trim()
+
+            Timber.d("🏠 LOGIN with username: '$trimmedUsername'")
+
+            if (trimmedUsername.isBlank()) {
+                return Result.failure(Exception("Username tidak boleh kosong!"))
+            }
+
+            // Find user by username in users collection
+            val userQuery = firestore.collection("users")
+                .whereEqualTo("usernameLower", trimmedUsername.lowercase())
+                .limit(1)
+                .get()
+                .await()
+
+            if (userQuery.isEmpty) {
+                return Result.failure(Exception("Username '$trimmedUsername' tidak ditemukan!"))
+            }
+
+            val userDoc = userQuery.documents[0]
+            val userData = userDoc.data ?: throw Exception("User data not found")
+            val userId = userDoc.id
+
+            // Get the custom token using Cloud Function (if you still want to use it)
+            // OR create a custom token directly here
+            val customToken = try {
+                // Try using Cloud Function first
+                val data: Map<String, Any> = mapOf(
+                    "username" to trimmedUsername,
+                    "isRegistration" to false
+                )
+
+                val result = functions
+                    .getHttpsCallable("generateCustomToken")
+                    .call(data)
+                    .await()
+
+                val customTokenData = result.data as? Map<*, *>
+                    ?: throw Exception("Cloud Function response is null")
+
+                customTokenData["customToken"] as? String
+                    ?: throw Exception("Custom token missing from response")
+            } catch (e: Exception) {
+                Timber.w("Cloud Function failed, fallback to direct auth: ${e.message}")
+                // Fallback: Sign in anonymously and update the auth user
+                val authResult = firebaseAuth.signInAnonymously().await()
+                val tempUser = authResult.user ?: throw Exception("Failed to create auth session")
+
+                // Update the anonymous user with profile info
+                val profileUpdates = UserProfileChangeRequest.Builder()
+                    .setDisplayName(userData["displayName"] as? String ?: trimmedUsername)
+                    .build()
+                tempUser.updateProfile(profileUpdates).await()
+
+                // Update preferences and return success
+                updateUserPreferences(
+                    userId = tempUser.uid,
+                    username = trimmedUsername,
+                    displayName = userData["displayName"] as? String ?: trimmedUsername,
+                    authType = "username"
+                )
+
+                Timber.d("🎉 Login successful (fallback)! UID: ${tempUser.uid}")
+                return Result.success(tempUser)
+            }
+
+            // Sign in with custom token
+            val authResult = firebaseAuth.signInWithCustomToken(customToken).await()
+            val user = authResult.user ?: throw Exception("Sign in failed after getting token")
+
+            // Update last login
+            firestore.collection("users")
+                .document(userId)
+                .update(mapOf(
+                    "lastActiveAt" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
+                    "lastLogin" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
+                    "lastLoginDate" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                ))
+                .await()
+
+            updateUserPreferences(
+                userId = userId,
+                username = trimmedUsername,
+                displayName = userData["displayName"] as? String ?: trimmedUsername,
+                authType = "username"
+            )
+
+            Timber.d("🎉 Login successful! UID: ${user.uid}")
+            Result.success(user)
+
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Login failed")
+            val errorMessage = when {
+                e.message?.contains("not found") == true -> "Username tidak ditemukan!"
+                e.message?.contains("network") == true -> "Koneksi bermasalah. Cek internet!"
+                else -> "Login gagal: ${e.message}"
+            }
+            Result.failure(Exception(errorMessage))
+        }
+    }
+
+    /**
+     * Register with email - Create directly in users collection
      */
     suspend fun registerWithEmail(email: String, password: String, displayName: String): Result<FirebaseUser> {
         return try {
-            // Create user with email/password
+            Timber.d("📧 REGISTER with email: $email")
+
             val authResult = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
-            val user = authResult.user ?: throw Exception("Registrasi via email gagal. Mungkin ada sihir aneh yang menghalangi.")
+            val user = authResult.user ?: throw Exception("Email registration failed")
 
             // Update Firebase Auth profile
             val profileUpdates = UserProfileChangeRequest.Builder()
@@ -105,115 +264,145 @@ class FirebaseAuthService @Inject constructor(
                 .build()
             user.updateProfile(profileUpdates).await()
 
-            // Create Firestore profile
+            // Create user profile in Firestore
             val profileResult = createUserProfile(
                 userId = user.uid,
-                username = "", // No username for email auth
+                username = "",
                 displayName = displayName,
                 email = email,
                 authType = "email"
             )
 
             if (profileResult.isSuccess) {
-                // Update user preferences
-                userPreferences.setUserId(user.uid)
-                userPreferences.setUserEmail(email)
-                userPreferences.setDisplayName(displayName)
-
+                updateUserPreferences(user.uid, "", displayName, "email", email)
+                Timber.d("🎉 Email registration successful!")
                 Result.success(user)
             } else {
-                // Rollback: delete user if profile creation fails
                 user.delete().await()
-                Result.failure(profileResult.exceptionOrNull() ?: Exception("Gagal membuat profil adventurer-mu. Ini lebih merepotkan dari mengurus Aqua."))
+                Result.failure(Exception("Gagal membuat profil pengguna"))
             }
+
         } catch (e: FirebaseAuthUserCollisionException) {
-            Result.failure(Exception("Email ini sudah terdaftar di party lain. Kalau itu kamu, coba login saja!"))
+            Result.failure(Exception("Email sudah terdaftar!"))
         } catch (e: FirebaseAuthWeakPasswordException) {
-            Result.failure(Exception("Password-mu terlalu lemah! Bahkan goblin bisa menebaknya. Coba yang lebih kuat."))
-        } catch (e: FirebaseNetworkException) {
-            Result.failure(Exception("Koneksi ke Guild (server) terputus! Mungkin ada serangan Destroyer di dekat sini. Cek koneksimu."))
+            Result.failure(Exception("Password terlalu lemah!"))
         } catch (e: Exception) {
-            Result.failure(Exception("Terjadi error tak terduga saat registrasi. Ini pasti ulah dewi tak berguna itu."))
+            Timber.e(e, "❌ Email registration failed")
+            Result.failure(Exception("Registrasi email gagal: ${e.message}"))
         }
     }
 
-
     /**
-     * Login with username (for username-based auth)
-     * "Selamat datang kembali, petualang! Ayo kita cari profilmu."
-     */
-    suspend fun loginWithUsername(username: String): Result<Map<String, Any>> {
-        return try {
-            // Step 1: Cari username di collection 'usernames' untuk dapat UID asli.
-            val usernameDoc = firestore.collection("usernames")
-                .document(username.lowercase())
-                .get()
-                .await()
-
-            if (!usernameDoc.exists()) {
-                return Result.failure(Exception("Adventurer dengan nama '$username' tidak ditemukan di Guild."))
-            }
-
-            val originalUserId = usernameDoc.getString("userId")
-                ?: return Result.failure(Exception("Data UID untuk adventurer ini korup."))
-
-            // Step 2: Gunakan UID asli untuk mengambil data profil dari collection 'users'.
-            val profileDoc = firestore.collection("users")
-                .document(originalUserId)
-                .get()
-                .await()
-
-            if (profileDoc.exists()) {
-                // TIDAK ADA LAGI signInAnonymously().
-                // Kita hanya mengambil data dan mengembalikannya.
-                val profileData = profileDoc.data ?: throw Exception("Data profil petualangmu hilang!")
-                Result.success(profileData)
-            } else {
-                Result.failure(Exception("Profil untuk adventurer ini tidak ditemukan."))
-            }
-        } catch (e: FirebaseNetworkException) {
-            Result.failure(Exception("Koneksi ke Guild (server) terputus. Cek koneksimu."))
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-
-    /**
-     * Login with email and password
+     * Login with email
      */
     suspend fun loginWithEmail(email: String, password: String): Result<FirebaseUser> {
         return try {
-            val authResult = firebaseAuth.signInWithEmailAndPassword(email, password).await()
-            val user = authResult.user ?: throw Exception("Login gagal")
+            Timber.d("📧 LOGIN with email: $email")
 
-            // Load user profile and update preferences
-            val profileResult = getUserProfile()
-            if (profileResult.isSuccess) {
-                val profile = profileResult.getOrNull()
-                userPreferences.setUserId(user.uid)
-                userPreferences.setUserEmail(email)
-                userPreferences.setDisplayName(profile?.get("displayName") as? String ?: "User")
+            val authResult = firebaseAuth.signInWithEmailAndPassword(email, password).await()
+            val user = authResult.user ?: throw Exception("Email login failed")
+
+            // Load user profile
+            val profileData = getUserProfileData(user.uid)
+            if (profileData != null) {
+                updateUserPreferences(
+                    userId = user.uid,
+                    username = profileData["username"] as? String ?: "",
+                    displayName = profileData["displayName"] as? String ?: "User",
+                    authType = "email",
+                    email = email
+                )
             }
 
+            Timber.d("🎉 Email login successful!")
             Result.success(user)
+
         } catch (e: FirebaseAuthInvalidUserException) {
-            Result.failure(Exception("Adventurer dengan email ini tidak ditemukan. Mungkin mau coba Register?"))
+            Result.failure(Exception("Email tidak ditemukan!"))
         } catch (e: FirebaseAuthInvalidCredentialsException) {
-            Result.failure(Exception("Password salah! Coba lagi, bahkan Darkness pun kadang lupa shield-nya."))
-        } catch (e: FirebaseNetworkException) {
-            Result.failure(Exception("Koneksi ke guild hall (server) gagal. Cek koneksi internetmu!"))
+            Result.failure(Exception("Password salah!"))
         } catch (e: Exception) {
-            Result.failure(Exception("Terjadi error yang tidak diketahui. Bahkan Aqua pun bingung!"))
+            Timber.e(e, "❌ Email login failed")
+            Result.failure(Exception("Login email gagal: ${e.message}"))
         }
     }
 
     /**
-     * Create user profile in Firestore
+     * Register anonymous user
      */
-    private suspend fun createUserProfile(
+    suspend fun registerAnonymous(username: String, displayName: String): Result<FirebaseUser> {
+        return try {
+            Timber.d("👤 REGISTER anonymous: $username")
+
+            val authResult = firebaseAuth.signInAnonymously().await()
+            val user = authResult.user ?: throw Exception("Anonymous registration failed")
+
+            val profileResult = createUserProfile(
+                userId = user.uid,
+                username = username,
+                displayName = displayName,
+                email = null,
+                authType = "anonymous"
+            )
+
+            if (profileResult.isSuccess) {
+                updateUserPreferences(user.uid, username, displayName, "anonymous")
+                Timber.d("🎉 Anonymous registration successful!")
+                Result.success(user)
+            } else {
+                user.delete().await()
+                Result.failure(Exception("Gagal membuat profil anonymous"))
+            }
+
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Anonymous registration failed")
+            Result.failure(Exception("Registrasi anonymous gagal: ${e.message}"))
+        }
+    }
+
+    private suspend fun updateUserPreferences(
         userId: String,
         username: String,
+        displayName: String,
+        authType: String,
+        email: String? = null
+    ) {
+        userPreferences.setUserId(userId)
+        userPreferences.setUsername(username)
+        userPreferences.setDisplayName(displayName)
+        userPreferences.setAuthType(authType)
+
+        if (authType == "username" || authType == "anonymous") {
+            userPreferences.setAnonymousUsername(username)
+        }
+
+        email?.let { userPreferences.setUserEmail(it) }
+
+        Timber.d("✅ User preferences updated for: $displayName ($authType)")
+    }
+
+    private suspend fun getUserProfileData(userId: String): Map<String, Any>? {
+        return try {
+            val document = firestore.collection("users")
+                .document(userId)
+                .get()
+                .await()
+
+            if (document.exists()) {
+                document.data
+            } else {
+                Timber.w("⚠️ User profile not found for: $userId")
+                null
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error getting user profile for: $userId")
+            null
+        }
+    }
+
+    private suspend fun createUserProfile(
+        userId: String,
+        username: String?,
         displayName: String,
         email: String?,
         authType: String
@@ -221,27 +410,50 @@ class FirebaseAuthService @Inject constructor(
         return try {
             val currentDate = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
 
-            val userProfile = hashMapOf(
+            val userProfile = mapOf<String, Any?>(
+                "uid" to userId,
                 "userId" to userId,
                 "username" to username,
+                "usernameLower" to username?.lowercase(), // For case-insensitive search
                 "displayName" to displayName,
                 "email" to email,
                 "authType" to authType,
-                "joinDate" to currentDate,
-                "lastLogin" to currentDate,
-                "chaosEntries" to 0,
-                "dayStreak" to 0,
-                "longestStreak" to 0,
-                "supportGiven" to 0,
-                "supportReceived" to 0,
-                "isActive" to true,
-                "profileVersion" to 1,
                 "bio" to "",
+                "profilePicture" to null,
                 "chaosLevel" to 1,
                 "partyRole" to "Newbie Adventurer",
-                "profilePicture" to null,
-                "lastLoginDate" to currentDate,
-                "achievements" to emptyList<String>()
+                "dayStreak" to 0,
+                "longestStreak" to 0,
+                "totalEntries" to 0,
+                "chaosEntries" to 0,
+                "chaosEntriesCount" to 0,
+                "streakDays" to 0,
+                "supportGiven" to 0,
+                "supportReceived" to 0,
+                "totalSupportGiven" to 0,
+                "totalSupportReceived" to 0,
+                "totalSupportsGiven" to 0,
+                "totalSupportsReceived" to 0,
+                "achievements" to emptyList<String>(),
+                "favoriteQuote" to "",
+                "favoriteKonoSubaCharacter" to "",
+                "isActive" to true,
+                "isAnonymous" to (authType == "anonymous"),
+                "profileVersion" to 1,
+                "settings" to mapOf(
+                    "theme" to "system",
+                    "notificationsEnabled" to true,
+                    "reminderTime" to "20:00",
+                    "anonymousMode" to false,
+                    "shareByDefault" to false,
+                    "konoSubaQuotesEnabled" to true,
+                    "showChaosLevel" to true
+                ),
+                "createdAt" to currentDate,
+                "joinDate" to currentDate,
+                "lastActiveAt" to currentDate,
+                "lastLogin" to currentDate,
+                "lastLoginDate" to currentDate
             )
 
             firestore.collection("users")
@@ -249,148 +461,102 @@ class FirebaseAuthService @Inject constructor(
                 .set(userProfile)
                 .await()
 
-            if (username.isNotBlank()) {
-                firestore.collection("usernames")
-                    .document(username.lowercase())
-                    .set(mapOf(
-                        "userId" to userId,
-                        "username" to username,
-                        "createdAt" to currentDate,
-                        "authType" to authType
-                    ))
-                    .await()
-            }
-
+            Timber.d("✅ User profile created for: $userId")
             Result.success(Unit)
+
         } catch (e: Exception) {
+            Timber.e(e, "❌ Error creating user profile")
             Result.failure(e)
         }
     }
 
-    /**
-     * Get user profile from Firestore (current user)
-     */
     suspend fun getUserProfile(): Result<Map<String, Any>> {
-        return try {
-            val user = currentUser ?: throw Exception("Siapa kamu? Kamu harus login dulu untuk melihat profil.")
-
-            val document = firestore.collection("users")
-                .document(user.uid)
-                .get()
-                .await()
-
-            if (document.exists()) {
-                val data = document.data ?: throw Exception("Datanya ada, tapi isinya kosong. Ini pasti kerjaan sihir ilusi.")
-                Result.success(data)
-            } else {
-                Result.failure(Exception("Profil petualang ini kosong, seperti dompet Kazuma di akhir bulan."))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        val user = currentUser ?: return Result.failure(Exception("Tidak ada user yang login"))
+        return getUserProfile(user.uid)
     }
 
-    /**
-     * Get user profile from Firestore by userId
-     */
     suspend fun getUserProfile(userId: String): Result<Map<String, Any>> {
-        return try {
-            val document = firestore.collection("users")
-                .document(userId)
-                .get()
-                .await()
-
-            if (document.exists()) {
-                val data = document.data ?: throw Exception("Datanya ada, tapi isinya kosong. Ini pasti kerjaan sihir ilusi.")
-                Result.success(data)
-            } else {
-                Result.failure(Exception("Profil petualang ini kosong, seperti dompet Kazuma di akhir bulan."))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
+        val data = getUserProfileData(userId)
+        return if (data != null) {
+            Result.success(data)
+        } else {
+            Result.failure(Exception("Profil tidak ditemukan"))
         }
     }
 
-    /**
-     * Update user profile
-     */
     suspend fun updateUserProfile(updates: Map<String, Any>): Result<Unit> {
         return try {
-            val user = currentUser ?: throw Exception("Siapa kamu? Kamu harus login dulu untuk mengubah profil.")
+            val user = currentUser ?: throw Exception("Tidak ada user yang login")
 
             firestore.collection("users")
                 .document(user.uid)
                 .update(updates)
                 .await()
 
+            Timber.d("✅ User profile updated")
             Result.success(Unit)
         } catch (e: Exception) {
+            Timber.e(e, "❌ Error updating user profile")
             Result.failure(e)
         }
     }
 
-    /**
-     * Delete user account
-     */
-    suspend fun deleteAccount(): Result<Unit> {
+    suspend fun checkUsernameAvailability(username: String): Boolean {
         return try {
-            val user = currentUser ?: throw Exception("Tidak bisa menghapus akun yang tidak login!")
-            val userId = user.uid
+            val trimmedUsername = username.trim()
+            if (trimmedUsername.isBlank()) return false
 
-            firestore.collection("users")
-                .document(userId)
-                .delete()
+            val document = firestore.collection("users")
+                .whereEqualTo("usernameLower", trimmedUsername.lowercase())
+                .limit(1)
+                .get()
                 .await()
 
-            user.delete().await()
-
-            userPreferences.clearUserData()
-
-            Result.success(Unit)
+            document.isEmpty
         } catch (e: Exception) {
-            Result.failure(e)
+            Timber.e(e, "❌ Error checking username availability")
+            false
         }
     }
 
-    /**
-     * Logout user
-     */
     suspend fun logout(): Result<Unit> {
         return try {
             firebaseAuth.signOut()
             userPreferences.clearUserData()
+            Timber.d("👋 User logged out")
             Result.success(Unit)
         } catch (e: Exception) {
+            Timber.e(e, "❌ Error during logout")
             Result.failure(e)
         }
     }
 
-    /**
-     * Validate username format and requirements
-     */
-    private fun validateUsername(username: String): Result<Unit> {
-        return when {
-            username.length < 3 -> Result.failure(Exception("Username minimal 3 karakter, ya. Biar nggak kayak nama slime."))
-            username.length > 20 -> Result.failure(Exception("Username maksimal 20 karakter. Ini nama petualang, bukan judul light novel."))
-            !username.matches(Regex("^[a-zA-Z0-9_]+$")) -> Result.failure(Exception("Username hanya boleh huruf, angka, dan _. Jangan pakai sihir aneh-aneh."))
-            username.startsWith("_") || username.endsWith("_") -> Result.failure(Exception("Underscore jangan di depan atau belakang, nanti tersandung pas berpetualang."))
-            else -> Result.success(Unit)
+    suspend fun deleteAccount(): Result<Unit> {
+        return try {
+            val user = currentUser ?: throw Exception("Tidak ada user yang login")
+            val userId = user.uid
+
+            // Delete from Firestore users collection only
+            firestore.collection("users").document(userId).delete().await()
+
+            // Delete from Firebase Auth
+            user.delete().await()
+
+            // Clear preferences
+            userPreferences.clearUserData()
+
+            Timber.d("🗑️ Account deleted")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error deleting account")
+            Result.failure(e)
         }
     }
 
-    /**
-     * Check username availability
-     */
-    suspend fun checkUsernameAvailability(username: String): Boolean {
-        return try {
-            val document = firestore.collection("usernames")
-                .document(username.lowercase())
-                .get()
-                .await()
-
-            !document.exists()
-        } catch (e: Exception) {
-            false
-        }
+    fun generateRandomUsername(): String {
+        val adjectives = listOf("Epic", "Chaos", "Brave", "Wild", "Cool", "Swift", "Bold", "Lucky")
+        val nouns = listOf("Adventurer", "Hero", "Warrior", "Mage", "Explorer", "Knight", "Rogue", "Wizard")
+        val number = (1000..9999).random()
+        return "${adjectives.random()}${nouns.random()}$number"
     }
 }

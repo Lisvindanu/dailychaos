@@ -1,6 +1,8 @@
 // File: app/src/main/java/com/dailychaos/project/data/mapper/ChaosEntryMapper.kt
 package com.dailychaos.project.data.mapper
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import com.dailychaos.project.data.remote.dto.request.ChaosEntryRequest
 import com.dailychaos.project.domain.model.ChaosEntry
 import com.dailychaos.project.domain.model.SyncStatus
@@ -13,6 +15,7 @@ import kotlinx.datetime.toKotlinInstant
  * Mapper untuk ChaosEntry
  * "Mengubah ChaosEntry dari format domain ke Firebase dan sebaliknya!"
  */
+@RequiresApi(Build.VERSION_CODES.O)
 fun Map<String, Any>.toChaosEntry(): ChaosEntry {
     return ChaosEntry(
         id = this["id"] as? String ?: "",
@@ -30,6 +33,7 @@ fun Map<String, Any>.toChaosEntry(): ChaosEntry {
     )
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 fun ChaosEntry.toFirestoreMap(): Map<String, Any> {
     return hashMapOf(
         "id" to this.id,

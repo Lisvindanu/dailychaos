@@ -26,6 +26,7 @@ import com.dailychaos.project.presentation.ui.component.EmptyState
 import com.dailychaos.project.presentation.ui.component.ErrorMessage
 import com.dailychaos.project.presentation.ui.component.KonoSubaQuote
 import com.dailychaos.project.presentation.ui.component.LoadingIndicator
+import timber.log.Timber
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
@@ -38,6 +39,11 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     konoSubaApiService: KonoSubaApiService? = null // Added API service parameter
 ) {
+
+    LaunchedEffect(Unit) {
+        Timber.d("🏠 HomeScreen LOADED - FAB should be visible in bottom nav")
+    }
+
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     // Error handling
