@@ -17,6 +17,7 @@ import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
+import kotlinx.coroutines.flow.first
 import timber.log.Timber
 
 /**
@@ -170,72 +171,39 @@ class FirebaseAuthService @Inject constructor(
             val userData = userDoc.data ?: throw Exception("User data not found")
             val userId = userDoc.id
 
-            // Get the custom token using Cloud Function (if you still want to use it)
-            // OR create a custom token directly here
-            val customToken = try {
-                // Try using Cloud Function first
-                val data: Map<String, Any> = mapOf(
-                    "username" to trimmedUsername,
-                    "isRegistration" to false
-                )
+            Timber.d("📋 Found user data: userId=$userId, displayName=${userData["displayName"]}")
 
-                val result = functions
-                    .getHttpsCallable("generateCustomToken")
-                    .call(data)
-                    .await()
+            // FIXED: Simplified approach - just authenticate and set preferences
+            try {
+                Timber.d("🔄 Direct authentication without Firestore updates")
 
-                val customTokenData = result.data as? Map<*, *>
-                    ?: throw Exception("Cloud Function response is null")
-
-                customTokenData["customToken"] as? String
-                    ?: throw Exception("Custom token missing from response")
-            } catch (e: Exception) {
-                Timber.w("Cloud Function failed, fallback to direct auth: ${e.message}")
-                // Fallback: Sign in anonymously and update the auth user
+                // Sign in anonymously for Firebase Auth session
                 val authResult = firebaseAuth.signInAnonymously().await()
-                val tempUser = authResult.user ?: throw Exception("Failed to create auth session")
+                val user = authResult.user ?: throw Exception("Failed to create auth session")
+
+                Timber.d("🔄 Direct login - Firebase Auth UID: ${user.uid}")
 
                 // Update the anonymous user with profile info
                 val profileUpdates = UserProfileChangeRequest.Builder()
                     .setDisplayName(userData["displayName"] as? String ?: trimmedUsername)
                     .build()
-                tempUser.updateProfile(profileUpdates).await()
+                user.updateProfile(profileUpdates).await()
 
-                // Update preferences and return success
+                // Update preferences - this will be used by AuthRepository to find the correct profile
                 updateUserPreferences(
-                    userId = tempUser.uid,
-                    username = trimmedUsername,
+                    userId = user.uid, // Use Firebase Auth UID for now
+                    username = trimmedUsername, // This will be used as fallback search key
                     displayName = userData["displayName"] as? String ?: trimmedUsername,
                     authType = "username"
                 )
 
-                Timber.d("🎉 Login successful (fallback)! UID: ${tempUser.uid}")
-                return Result.success(tempUser)
+                Timber.d("🎉 Login successful! Firebase Auth UID: ${user.uid}, Username: $trimmedUsername")
+                Result.success(user)
+
+            } catch (directError: Exception) {
+                Timber.e(directError, "❌ Direct login failed")
+                throw Exception("Login gagal: ${directError.message}")
             }
-
-            // Sign in with custom token
-            val authResult = firebaseAuth.signInWithCustomToken(customToken).await()
-            val user = authResult.user ?: throw Exception("Sign in failed after getting token")
-
-            // Update last login
-            firestore.collection("users")
-                .document(userId)
-                .update(mapOf(
-                    "lastActiveAt" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
-                    "lastLogin" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
-                    "lastLoginDate" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-                ))
-                .await()
-
-            updateUserPreferences(
-                userId = userId,
-                username = trimmedUsername,
-                displayName = userData["displayName"] as? String ?: trimmedUsername,
-                authType = "username"
-            )
-
-            Timber.d("🎉 Login successful! UID: ${user.uid}")
-            Result.success(user)
 
         } catch (e: Exception) {
             Timber.e(e, "❌ Login failed")
@@ -383,17 +351,37 @@ class FirebaseAuthService @Inject constructor(
 
     private suspend fun getUserProfileData(userId: String): Map<String, Any>? {
         return try {
-            val document = firestore.collection("users")
+            // First try with the provided userId
+            var document = firestore.collection("users")
                 .document(userId)
                 .get()
                 .await()
 
             if (document.exists()) {
-                document.data
-            } else {
-                Timber.w("⚠️ User profile not found for: $userId")
-                null
+                return document.data
             }
+
+            // If not found, try to find by username from the current login context
+            // This handles the case where Firebase Auth UID != Firestore document ID
+            val storedUsername = userPreferences.username.first()
+            if (!storedUsername.isNullOrBlank()) {
+                Timber.d("FirebaseAuthService: Profile not found for UID $userId, searching by username: $storedUsername")
+
+                val userQuery = firestore.collection("users")
+                    .whereEqualTo("usernameLower", storedUsername.lowercase())
+                    .limit(1)
+                    .get()
+                    .await()
+
+                if (!userQuery.isEmpty) {
+                    val userDoc = userQuery.documents[0]
+                    Timber.d("FirebaseAuthService: Found profile by username with UID: ${userDoc.id}")
+                    return userDoc.data
+                }
+            }
+
+            Timber.w("⚠️ User profile not found for: $userId")
+            null
         } catch (e: Exception) {
             Timber.e(e, "❌ Error getting user profile for: $userId")
             null
