@@ -30,6 +30,9 @@ class ChaosDetailViewModel @Inject constructor(
 
     private val entryId: String = savedStateHandle.get<String>("entryId") ?: ""
 
+    // ENHANCED: Check if this is a community post navigation
+    private val isFromCommunity: Boolean = savedStateHandle.get<Boolean>("isFromCommunity") ?: false
+
     private val _uiState = MutableStateFlow(ChaosDetailUiState())
     val uiState = _uiState.asStateFlow()
 
@@ -39,14 +42,33 @@ class ChaosDetailViewModel @Inject constructor(
     init {
         Timber.d("🔍 ==================== CHAOS DETAIL SCREEN INITIALIZED ====================")
         Timber.d("🔍 Entry ID from navigation: '$entryId'")
-        loadEntry()
+        Timber.d("🔍 Is from community: $isFromCommunity")
+
+        if (entryId.isBlank()) {
+            Timber.e("❌ Entry ID is blank - cannot proceed")
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    error = "Invalid entry ID: Entry ID cannot be empty"
+                )
+            }
+        } else {
+            loadEntry()
+        }
     }
 
     fun onEvent(event: ChaosDetailEvent) {
         when (event) {
             is ChaosDetailEvent.Delete -> {
                 Timber.d("🗑️ Delete button pressed")
-                _uiState.update { it.copy(showDeleteConfirmDialog = true) }
+                if (isFromCommunity) {
+                    Timber.w("⚠️ Cannot delete community posts")
+                    _uiState.update {
+                        it.copy(error = "Community posts cannot be deleted")
+                    }
+                } else {
+                    _uiState.update { it.copy(showDeleteConfirmDialog = true) }
+                }
             }
             is ChaosDetailEvent.ConfirmDelete -> {
                 Timber.d("🗑️ Delete confirmed")
@@ -58,7 +80,14 @@ class ChaosDetailViewModel @Inject constructor(
             }
             is ChaosDetailEvent.Share -> {
                 Timber.d("📤 Share button pressed")
-                _uiState.update { it.copy(showShareConfirmDialog = true) }
+                if (isFromCommunity) {
+                    Timber.w("⚠️ Community posts are already shared")
+                    _uiState.update {
+                        it.copy(error = "This post is already shared in the community")
+                    }
+                } else {
+                    _uiState.update { it.copy(showShareConfirmDialog = true) }
+                }
             }
             is ChaosDetailEvent.ConfirmShare -> {
                 Timber.d("📤 Share confirmed")
@@ -74,6 +103,12 @@ class ChaosDetailViewModel @Inject constructor(
             }
             is ChaosDetailEvent.Edit -> {
                 Timber.d("✏️ Edit button pressed - navigation handled in UI")
+                if (isFromCommunity) {
+                    Timber.w("⚠️ Cannot edit community posts")
+                    _uiState.update {
+                        it.copy(error = "Community posts cannot be edited")
+                    }
+                }
             }
         }
     }
@@ -83,18 +118,7 @@ class ChaosDetailViewModel @Inject constructor(
             try {
                 Timber.d("📚 ==================== LOADING CHAOS ENTRY DETAIL ====================")
                 Timber.d("📚 Loading entry with ID: '$entryId'")
-
-                if (entryId.isBlank()) {
-                    val error = "Entry ID is empty - cannot load entry"
-                    Timber.e("❌ $error")
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = error
-                        )
-                    }
-                    return@launch
-                }
+                Timber.d("📚 Is from community: $isFromCommunity")
 
                 _uiState.update { it.copy(isLoading = true, error = null) }
 
@@ -114,47 +138,13 @@ class ChaosDetailViewModel @Inject constructor(
 
                 Timber.d("✅ Current user found: ${currentUser.id}")
 
-                // Load chaos entry from repository
-                chaosRepository.getChaosEntry(currentUser.id, entryId)
-                    .catch { exception ->
-                        Timber.e(exception, "❌ Error loading chaos entry from repository")
-                        _uiState.update {
-                            it.copy(
-                                isLoading = false,
-                                error = "Failed to load entry: ${exception.message}"
-                            )
-                        }
-                    }
-                    .collect { entry ->
-                        if (entry != null) {
-                            Timber.d("✅ Entry loaded successfully:")
-                            Timber.d("  - ID: ${entry.id}")
-                            Timber.d("  - Title: ${entry.title}")
-                            Timber.d("  - Description length: ${entry.description.length}")
-                            Timber.d("  - Chaos Level: ${entry.chaosLevel}")
-                            Timber.d("  - Mini Wins: ${entry.miniWins.size}")
-                            Timber.d("  - Tags: ${entry.tags}")
-                            Timber.d("  - Created At: ${entry.createdAt}")
-                            Timber.d("  - Shared to Community: ${entry.isSharedToCommunity}")
-
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    entry = entry,
-                                    error = null
-                                )
-                            }
-                        } else {
-                            val error = "Entry not found with ID: $entryId"
-                            Timber.e("❌ $error")
-                            _uiState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    error = error
-                                )
-                            }
-                        }
-                    }
+                if (isFromCommunity) {
+                    // ENHANCED: Load from community feed
+                    loadCommunityPost()
+                } else {
+                    // ORIGINAL: Load from user's personal chaos entries
+                    loadPersonalChaosEntry(currentUser.id)
+                }
 
             } catch (e: Exception) {
                 Timber.e(e, "💥 Unexpected error loading chaos entry")
@@ -168,7 +158,79 @@ class ChaosDetailViewModel @Inject constructor(
         }
     }
 
+    private suspend fun loadPersonalChaosEntry(userId: String) {
+        Timber.d("👤 Loading personal chaos entry for user: $userId")
+
+        chaosRepository.getChaosEntry(userId, entryId)
+            .catch { exception ->
+                Timber.e(exception, "❌ Error loading personal chaos entry from repository")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = "Failed to load entry: ${exception.message}"
+                    )
+                }
+            }
+            .collect { entry ->
+                handleLoadedEntry(entry, "personal chaos entry")
+            }
+    }
+
+    private suspend fun loadCommunityPost() {
+        Timber.d("🌍 Loading community post with ID: $entryId")
+
+        // TODO: Implement community post loading
+        // For now, show appropriate error
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                error = "Community post loading not yet implemented. Entry ID: $entryId"
+            )
+        }
+
+        // Future implementation:
+        // communityRepository.getCommunityPost(entryId)
+        //     .catch { exception -> ... }
+        //     .collect { post -> ... }
+    }
+
+    private fun handleLoadedEntry(entry: ChaosEntry?, entryType: String) {
+        if (entry != null) {
+            Timber.d("✅ $entryType loaded successfully:")
+            Timber.d("  - ID: ${entry.id}")
+            Timber.d("  - Title: ${entry.title}")
+            Timber.d("  - Description length: ${entry.description.length}")
+            Timber.d("  - Chaos Level: ${entry.chaosLevel}")
+            Timber.d("  - Mini Wins: ${entry.miniWins.size}")
+            Timber.d("  - Tags: ${entry.tags}")
+            Timber.d("  - Created At: ${entry.createdAt}")
+            Timber.d("  - Shared to Community: ${entry.isSharedToCommunity}")
+
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    entry = entry,
+                    error = null
+                )
+            }
+        } else {
+            val error = "$entryType not found with ID: $entryId"
+            Timber.e("❌ $error")
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    error = error
+                )
+            }
+        }
+    }
+
     private fun deleteEntry() {
+        if (isFromCommunity) {
+            Timber.w("⚠️ Cannot delete community posts")
+            return
+        }
+
         viewModelScope.launch {
             try {
                 Timber.d("🗑️ ==================== DELETING CHAOS ENTRY ====================")
@@ -233,6 +295,11 @@ class ChaosDetailViewModel @Inject constructor(
     }
 
     private fun shareEntry() {
+        if (isFromCommunity) {
+            Timber.w("⚠️ Community posts are already shared")
+            return
+        }
+
         viewModelScope.launch {
             try {
                 Timber.d("📤 ==================== SHARING CHAOS ENTRY ====================")
