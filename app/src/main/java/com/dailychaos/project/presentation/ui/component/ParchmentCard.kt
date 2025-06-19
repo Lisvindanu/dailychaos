@@ -11,15 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-/**
- * ParchmentCard - Sebuah Card kustom dengan style kertas tua.
- *
- * Card ini secara otomatis akan memiliki warna latar belakang `OldPaperHighlight`
- * dan border berwarna `FadedBrown` sesuai dengan tema Parchment.
- *
- * @param modifier Modifier untuk kustomisasi dari luar.
- * @param content Konten yang akan ditampilkan di dalam card.
- */
+// After:
 @Composable
 fun ParchmentCard(
     modifier: Modifier = Modifier,
@@ -29,13 +21,12 @@ fun ParchmentCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        // Mengatur warna dan elevasi kartu
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant // Ini adalah OldPaperHighlight
+            // DIUBAH: Memberikan sedikit warna keemasan agar terlihat seperti kertas tua
+            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
         ),
-        // Menambahkan border
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline), // Ini adalah FadedBrown
-        // Menggunakan bentuk yang sudah didefinisikan di tema
+        // DIUBAH: Border dibuat sedikit lebih gelap untuk menambah kontras
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
         shape = MaterialTheme.shapes.medium,
         content = content
     )
