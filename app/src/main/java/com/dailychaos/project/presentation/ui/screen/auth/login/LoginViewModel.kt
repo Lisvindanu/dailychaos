@@ -1,21 +1,23 @@
-/* app/src/main/java/com/dailychaos/project/presentation/ui/screen/auth/login/LoginViewModel.kt */
+// Complete Fixed LoginViewModel.kt
 package com.dailychaos.project.presentation.ui.screen.auth.login
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dailychaos.project.domain.model.User
-import com.dailychaos.project.domain.model.UsernameValidation
 import com.dailychaos.project.domain.usecase.auth.AuthUseCases
 import com.dailychaos.project.preferences.UserPreferences
+import com.dailychaos.project.domain.model.User
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 
 @HiltViewModel
@@ -25,12 +27,11 @@ class LoginViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
-    val uiState = _uiState.asStateFlow()
+    val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
     private val _loginSuccessEvent = MutableSharedFlow<Unit>()
-    val loginSuccessEvent = _loginSuccessEvent.asSharedFlow()
+    val loginSuccessEvent: SharedFlow<Unit> = _loginSuccessEvent.asSharedFlow()
 
-    // Debounce job for username validation
     private var validationJob: Job? = null
 
     fun onEvent(event: LoginEvent) {
@@ -53,32 +54,48 @@ class LoginViewModel @Inject constructor(
             it.copy(
                 username = username,
                 usernameError = null,
-                suggestions = emptyList()
+                suggestions = emptyList(),
+                // FIXED: Always set to true for login unless blank
+                isUsernameValid = username.isNotBlank()
             )
         }
 
-        // Debounce validation
+        // Background validation for suggestions only - doesn't block login
         validationJob?.cancel()
         if (username.isNotBlank()) {
             validationJob = viewModelScope.launch {
-                delay(500) // Wait 500ms before validating
-                validateUsername(username)
+                delay(300)
+                try {
+                    validateUsername(username)
+                } catch (e: Exception) {
+                    // Ignore validation errors for login
+                    Timber.w(e, "Username validation failed, but allowing login to proceed")
+                }
             }
-        } else {
-            _uiState.update { it.copy(isUsernameValid = false, usernameError = null) }
         }
     }
 
     private suspend fun validateUsername(username: String) {
-        // We only perform basic format validation here on login.
-        // The check for existence happens on the server.
-        val validation = authUseCases.validateUsername(username)
-        _uiState.update {
-            it.copy(
-                isUsernameValid = validation.isValid,
-                usernameError = if (validation.isValid) null else validation.message,
-                suggestions = validation.suggestions
-            )
+        try {
+            // Background validation for suggestions only
+            val validation = authUseCases.validateUsername(username)
+            _uiState.update {
+                it.copy(
+                    // FIXED: Always keep true for login - don't block login based on validation
+                    isUsernameValid = true,
+                    suggestions = validation.suggestions
+                    // Don't set usernameError for login - let server handle it
+                )
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error validating username: $username")
+            // On validation error, keep login available
+            _uiState.update {
+                it.copy(
+                    isUsernameValid = true,
+                    usernameError = null
+                )
+            }
         }
     }
 
@@ -99,21 +116,46 @@ class LoginViewModel @Inject constructor(
 
     private fun loginWithUsername() {
         val state = _uiState.value
-        if (state.username.isBlank() || !state.isUsernameValid) {
-            _uiState.update { it.copy(usernameError = "Please enter a valid username.") }
+
+        // FIXED: Only check if blank - remove isUsernameValid check completely
+        if (state.username.isBlank()) {
+            _uiState.update { it.copy(usernameError = "Please enter your username.") }
+            return
+        }
+
+        // Basic length check to prevent obvious errors
+        if (state.username.length < 3) {
+            _uiState.update { it.copy(usernameError = "Username must be at least 3 characters.") }
             return
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-            // **FIXED**: Call the correct use case for logging in with a username.
-            val result = authUseCases.loginWithUsername(state.username)
+            _uiState.update { it.copy(isLoading = true, error = null, usernameError = null) }
 
-            result.onSuccess { user ->
-                // After getting the user data, save it to preferences and proceed.
-                saveUserAndProceed(user)
-            }.onFailure { error ->
-                _uiState.update { it.copy(isLoading = false, error = error.message ?: "Login failed") }
+            // Cancel any ongoing validation to prevent conflicts
+            validationJob?.cancel()
+
+            try {
+                val result = authUseCases.loginWithUsername(state.username)
+
+                result.onSuccess { user ->
+                    saveUserAndProceed(user)
+                }.onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = error.message ?: "Login failed"
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Unexpected error during username login")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = "An unexpected error occurred. Please try again."
+                    )
+                }
             }
         }
     }
@@ -122,32 +164,85 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
 
-            // This flow is for creating a new anonymous user, so calling register is correct.
-            val randomUsername = "Adventurer${(1000..9999).random()}"
-            val result = authUseCases.registerWithUsername(
-                username = randomUsername,
-                displayName = randomUsername
-            )
+            try {
+                // Generate random username for anonymous user
+                val randomUsername = generateRandomUsername()
+                val displayName = randomUsername
 
-            result.onSuccess { user ->
-                saveUserAndProceed(user)
-            }.onFailure { error ->
-                _uiState.update { it.copy(isLoading = false, error = error.message ?: "Failed to start anonymous session") }
+                Timber.d("LoginViewModel: Starting anonymous login with username: $randomUsername")
+
+                val result = authUseCases.registerWithUsername(
+                    username = randomUsername,
+                    displayName = displayName
+                )
+
+                result.onSuccess { user ->
+                    Timber.d("LoginViewModel: Anonymous registration successful")
+                    saveUserAndProceed(user)
+                }.onFailure { error ->
+                    Timber.e("LoginViewModel: Anonymous registration failed: ${error.message}")
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = error.message ?: "Failed to start anonymous session"
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "LoginViewModel: Unexpected error during anonymous login")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = "Failed to create anonymous session. Please try again."
+                    )
+                }
             }
         }
     }
 
     private suspend fun saveUserAndProceed(user: User) {
-        // Simpan data user ke preferensi lokal untuk menjaga sesi
-        userPreferences.saveUserData(
-            userId = user.id,
-            username = user.anonymousUsername.takeIf { it.isNotEmpty() },
-            displayName = user.displayName.ifBlank { user.anonymousUsername },
-            email = user.email,
-            // Tentukan authType berdasarkan data user yang didapat
-            authType = if (user.isAnonymous) "username" else "email"
-        )
-        _uiState.update { it.copy(isLoading = false) }
-        _loginSuccessEvent.emit(Unit)
+        try {
+            // Save user data to local preferences
+            userPreferences.saveUserData(
+                userId = user.id,
+                username = user.anonymousUsername.takeIf { it.isNotEmpty() },
+                displayName = user.displayName.ifBlank { user.anonymousUsername },
+                email = user.email,
+                authType = when {
+                    user.isAnonymous -> "anonymous"
+                    user.email.isNullOrBlank() -> "username"
+                    else -> "email"
+                }
+            )
+
+            _uiState.update { it.copy(isLoading = false) }
+            _loginSuccessEvent.emit(Unit)
+
+            Timber.d("Login successful for user: ${user.displayName}")
+        } catch (e: Exception) {
+            Timber.e(e, "Error saving user data after login")
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    error = "Login successful but failed to save user data. Please try again."
+                )
+            }
+        }
+    }
+
+    private fun generateRandomUsername(): String {
+        val adjectives = listOf("Epic", "Chaos", "Brave", "Wild", "Cool", "Swift", "Bold", "Lucky", "Mighty", "Noble")
+        val nouns = listOf("Adventurer", "Hero", "Warrior", "Mage", "Explorer", "Knight", "Rogue", "Wizard", "Champion", "Guardian")
+        val number = (1000..9999).random()
+
+        val adjective = adjectives.random()
+        val noun = nouns.random()
+
+        return "${adjective}${noun}${number}"
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        validationJob?.cancel()
     }
 }

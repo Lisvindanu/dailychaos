@@ -3,6 +3,7 @@ package com.dailychaos.project.domain.repository
 
 import com.dailychaos.project.domain.model.AuthState
 import com.dailychaos.project.domain.model.User
+import com.dailychaos.project.domain.model.UserProfile
 import com.dailychaos.project.domain.model.UsernameValidation
 import kotlinx.coroutines.flow.Flow
 
@@ -23,12 +24,18 @@ interface AuthRepository {
     // Registration methods
     suspend fun registerWithUsername(username: String, displayName: String): Result<User>
     suspend fun registerWithEmail(email: String, password: String, displayName: String): Result<User>
+    suspend fun registerAnonymous(username: String, displayName: String): Result<User>
 
     // Account management
     suspend fun logout(): Result<Unit>
     suspend fun updateUserProfile(updates: Map<String, Any>): Result<Unit>
     suspend fun deleteAccount(): Result<Unit>
 
-    // Validation
+    // Profile management
+    suspend fun getUserProfile(userId: String? = null): Result<UserProfile>
+
+    // Validation and utility
     suspend fun validateUsername(username: String): UsernameValidation
+    suspend fun checkUsernameAvailability(username: String): Boolean
+    fun generateRandomUsername(): String
 }

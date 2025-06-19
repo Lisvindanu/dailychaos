@@ -1,8 +1,8 @@
+// Fixed LoginUiState.kt
 package com.dailychaos.project.presentation.ui.screen.auth.login
 
 /**
  * Login Screen UI State
- *
  * "Manages state untuk login, apakah berhasil, gagal, atau loading."
  */
 data class LoginUiState(
@@ -13,7 +13,7 @@ data class LoginUiState(
     val error: String? = null,
     val isPasswordVisible: Boolean = false,
     val loginMode: LoginMode = LoginMode.USERNAME,
-    val isUsernameValid: Boolean = false,
+    val isUsernameValid: Boolean = true, // FIXED: Changed from false to true
     val usernameError: String? = null,
     val suggestions: List<String> = emptyList()
 )

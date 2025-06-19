@@ -20,18 +20,24 @@ object ChaosDestinations {
     const val JOURNAL_ROUTE = "journal"
     const val COMMUNITY_ROUTE = "community"
     const val CREATE_CHAOS_ROUTE = "create_chaos"
-    const val CHAOS_DETAIL_ROUTE = "chaos_detail"
+
+    // FIXED: Separate routes for personal chaos entries vs community posts
+    const val CHAOS_DETAIL_ROUTE = "chaos_detail"        // For personal entries
+    const val COMMUNITY_POST_ROUTE = "community_post"    // For community posts
+
     const val EDIT_CHAOS_ROUTE = "edit_chaos"
     const val CHAOS_TWINS_ROUTE = "chaos_twins"
     const val SUPPORT_ROUTE = "support"
 
     // Routes with parameters
     const val CHAOS_DETAIL_WITH_ID = "$CHAOS_DETAIL_ROUTE/{${Args.ENTRY_ID}}"
+    const val COMMUNITY_POST_WITH_ID = "$COMMUNITY_POST_ROUTE/{${Args.POST_ID}}"
     const val EDIT_CHAOS_WITH_ID = "$EDIT_CHAOS_ROUTE/{${Args.ENTRY_ID}}"
     const val SUPPORT_WITH_POST_ID = "$SUPPORT_ROUTE/{${Args.POST_ID}}"
 
     // Helper functions to create routes with parameters
     fun chaosDetailRoute(entryId: String) = "$CHAOS_DETAIL_ROUTE/$entryId"
+    fun communityPostRoute(postId: String) = "$COMMUNITY_POST_ROUTE/$postId"
     fun editChaosRoute(entryId: String) = "$EDIT_CHAOS_ROUTE/$entryId"
     fun supportRoute(postId: String) = "$SUPPORT_ROUTE/$postId"
 

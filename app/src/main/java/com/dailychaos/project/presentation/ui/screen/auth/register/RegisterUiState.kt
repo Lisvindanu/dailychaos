@@ -1,4 +1,4 @@
-// File: app/src/main/java/com/dailychaos/project/presentation/ui/screen/auth/register/RegisterUiState.kt
+// Fixed RegisterUiState.kt
 package com.dailychaos.project.presentation.ui.screen.auth.register
 
 /**
@@ -15,7 +15,7 @@ data class RegisterUiState(
 
     // Username registration fields
     val username: String = "",
-    val isUsernameValid: Boolean = false,
+    val isUsernameValid: Boolean = true, // FIXED: Changed from false to true
     val usernameError: String? = null,
     val suggestions: List<String> = emptyList(),
 
@@ -29,6 +29,7 @@ data class RegisterUiState(
     val passwordError: String? = null,
     val confirmPasswordError: String? = null
 )
+
 
 enum class RegisterMode {
     USERNAME,

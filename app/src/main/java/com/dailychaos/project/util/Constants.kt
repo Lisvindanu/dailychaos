@@ -14,7 +14,24 @@ object Constants {
     // Firestore Collections
     const val COLLECTION_USERS = "users"
     const val COLLECTION_CHAOS_ENTRIES = "chaos_entries"
-    const val COLLECTION_COMMUNITY_POSTS = "community_posts"
+//    const val COLLECTION_COMMUNITY_POSTS = "community_posts"
+// AFTER:
+const val COLLECTION_COMMUNITY_POSTS = "community_feed"  // Match dengan data existing
+
+    const val COLLECTION_USERNAMES = "usernames"
+
+    // Auth
+    const val PREF_AUTH_TOKEN = "auth_token"
+    const val PREF_USER_ID = "user_id"
+    const val PREF_USERNAME = "username"
+
+    // Validation
+    const val MIN_TITLE_LENGTH = 3
+    const val MAX_TITLE_LENGTH = 100
+    const val MIN_CONTENT_LENGTH = 10
+    const val MAX_CONTENT_LENGTH = 5000
+    const val MIN_CHAOS_LEVEL = 1
+    const val MAX_CHAOS_LEVEL = 10
     const val COLLECTION_SUPPORT_REACTIONS = "support_reactions"
     const val COLLECTION_REPORTS = "reports"
 

@@ -14,10 +14,11 @@ junitVersion = "1.2.1" # For Android instrumented tests (androidx.test.ext:junit
 espressoCore = "3.6.1" # For Android instrumented tests (androidx.test.espresso:espresso-core)
 lifecycleRuntimeKtx = "2.9.0"
 activityCompose = "1.10.1"
-composeBom = "2025.05.01"
+composeBom = "2025.06.00"
 composeCompiler = "1.5.3"
 hilt = "2.56.1" # Hilt version
 hiltNavigationCompose = "1.2.0"
+material = "1.8.2"
 mockk = "1.13.16"
 mockkAgent = "1.13.16"
 mockkAndroid = "1.13.8"
@@ -33,6 +34,7 @@ kotlinxSerialization = "1.7.3"
 coroutines = "1.10.1"
 mockito = "5.15.2"
 mockitoKotlin = "5.4.0"
+timber = "5.0.1"
 truth = "1.4.4"
 robolectric = "4.13"
 archCoreTesting = "2.2.0"
@@ -51,6 +53,7 @@ coreSplashscreen = "1.0.1"
 androidx-activity-compose-v182 = { module = "androidx.activity:activity-compose", version.ref = "activityComposeVersion" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-material = { module = "androidx.compose.material:material" }
 androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 
 # JUnit for local unit tests
@@ -58,6 +61,8 @@ coil-compose-v250 = { module = "io.coil-kt:coil-compose", version.ref = "coilCom
 coil-network-okhttp = { module = "io.coil-kt:coil-network-okhttp", version.ref = "coilNetworkOkhttp" }
 converter-gson-v290 = { module = "com.squareup.retrofit2:converter-gson", version.ref = "converterGson" }
 core-ktx = { module = "androidx.test:core-ktx", version.ref = "coreKtxVersion" }
+firebase-appcheck-debug = { module = "com.google.firebase:firebase-appcheck-debug" }
+firebase-appcheck-playintegrity = { module = "com.google.firebase:firebase-appcheck-playintegrity" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 # AndroidX Test libraries for instrumented tests
@@ -93,6 +98,7 @@ hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-com
 hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
 
 # Networking
+material = { module = "androidx.compose.material:material", version.ref = "material" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 mockk-agent = { module = "io.mockk:mockk-agent", version.ref = "mockkAgent" }
 mockk-android = { module = "io.mockk:mockk-android", version.ref = "mockkAndroid" }
@@ -126,6 +132,7 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 # Testing (Unit & Instrumented)
 mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
 mockito-kotlin = { group = "org.mockito.kotlin", name = "mockito-kotlin", version.ref = "mockitoKotlin" }
+timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 truth = { group = "com.google.truth", name = "truth", version.ref = "truth" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 arch-core-testing = { group = "androidx.arch.core", name = "core-testing", version.ref = "archCoreTesting" }

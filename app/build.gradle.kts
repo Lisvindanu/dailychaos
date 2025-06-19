@@ -1,3 +1,6 @@
+// File: app/build.gradle.kts
+// FIXED: Updated for proper Material3 theme support and release build
+
 import java.util.Properties
 import java.io.FileInputStream
 
@@ -20,16 +23,6 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
-    }
-
-    // SIGNING CONFIG untuk Release
-    signingConfigs {
-        create("release") {
-            storeFile = file("../daily-chaos-release-key.keystore")
-            storePassword = "DailyChaosKey2025"
-            keyAlias = "daily-chaos-key"
-            keyPassword = "DailyChaosKey2025"
-        }
     }
 
     defaultConfig {
@@ -62,7 +55,6 @@ android {
     buildTypes {
         debug {
             isDebuggable = true
-            // applicationIdSuffix = ".debug"  // COMMENT OUT INI
             versionNameSuffix = "-debug"
 
             val localProperties = Properties()
@@ -83,6 +75,7 @@ android {
             buildConfigField("String", "FIREBASE_PROJECT_ID", "\"$firebaseProjectId\"")
         }
 
+        // FIXED: Properly configure release build type
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -93,18 +86,17 @@ android {
                 "proguard-rules.pro"
             )
 
-            // GUNAKAN SIGNING CONFIG
-            signingConfig = signingConfigs.getByName("release")
-
             // Production configuration
             val firebaseProjectId = System.getenv("FIREBASE_PROJECT_ID_PROD") ?:
             System.getenv("FIREBASE_PROJECT_ID") ?:
             "daily-chaos-prod"
 
+            buildConfigField("String", "APP_NAME", "\"Daily Chaos\"")
             buildConfigField("String", "FIREBASE_PROJECT_ID", "\"$firebaseProjectId\"")
         }
     }
 
+    // JVM target configuration
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -112,12 +104,13 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
-    buildFeatures {
-        compose = true
-    }
+
+    // Compose options
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14"
     }
+
+    // Packaging configuration to resolve conflicts
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -150,8 +143,12 @@ android {
             excludes += "**/OSGI-INF/**"
         }
     }
+
+    // Lint configuration
     lint {
         disable.add("NullSafeMutableLiveData")
+        disable.add("VectorRaster") // Disable vector to raster warnings
+        disable.add("IconMissingDensityFolder") // Disable missing density warnings
     }
 }
 
@@ -171,8 +168,8 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.compose.navigation)
 
-    // Pull to refresh & Material
-    implementation("androidx.compose.material:material")
+    // Material - KEEP ONLY ONE VERSION
+    implementation(libs.material)
 
     // Firebase
     implementation(platform(libs.firebase.bom))
@@ -210,7 +207,7 @@ dependencies {
     // Image Loading - Coil
     implementation(libs.coil.compose)
 
-    // Networking - Retrofit & OkHttp (untuk non-Firebase APIs jika diperlukan)
+    // Networking - Retrofit & OkHttp
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
     implementation(libs.okhttp)
@@ -218,16 +215,6 @@ dependencies {
 
     // Image picker
     implementation(libs.androidx.activity.compose.v182)
-
-    // Networking & API
-    implementation(libs.retrofit.v290)
-    implementation(libs.converter.gson.v290)
-    implementation(libs.okhttp)
-    implementation(libs.okhttp.logging.interceptor)
-
-    // Image Loading (Coil for Compose)
-    implementation(libs.coil.compose.v250)
-    implementation("io.coil-kt:coil-compose:2.5.0")
 
     // JSON Parsing
     implementation("com.google.code.gson:gson:2.11.0")
@@ -245,6 +232,8 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
+    implementation("com.google.firebase:firebase-appcheck-playintegrity") // For production builds (Play Integrity)
+    debugImplementation("com.google.firebase:firebase-appcheck-debug") // For debug builds (Debug Provider)
     androidTestImplementation(libs.androidx.ui.test.junit4)
     androidTestImplementation(libs.androidx.ui.test.junit4.android)
     androidTestImplementation(libs.kotlinx.coroutines.test)
@@ -261,6 +250,9 @@ dependencies {
     debugImplementation(libs.chucker)
     implementation(kotlin("test"))
 
+    // Logging - Timber
+    implementation(libs.timber)
+
+    // Animation
     implementation("androidx.compose.animation:animation:1.8.2")
-    implementation("androidx.compose.material:material:1.8.2") // Untuk PullToRefresh
 }

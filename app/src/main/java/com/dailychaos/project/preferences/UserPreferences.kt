@@ -36,6 +36,9 @@ class UserPreferences @Inject constructor(
         private val LAST_SYNC_TIME = longPreferencesKey("last_sync_time")
         private val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
 
+        // Kunci preferensi baru untuk status migrasi
+        private val MIGRATION_COMPLETED = booleanPreferencesKey("migration_completed")
+
         // Additional keys for registration
         private val USER_EMAIL = stringPreferencesKey("user_email")
         private val DISPLAY_NAME = stringPreferencesKey("display_name")
@@ -343,6 +346,19 @@ class UserPreferences @Inject constructor(
             hasUserId && hasDisplayName && hasAuthType
         }
 
+    // Fungsi baru untuk mendapatkan status migrasi username lowercase
+    val isMigrationCompleted: Flow<Boolean> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { preferences ->
+            preferences[MIGRATION_COMPLETED] ?: false
+        }
+
     // ================================
     // WRITE PREFERENCES
     // ================================
@@ -518,6 +534,13 @@ class UserPreferences @Inject constructor(
     suspend fun setOnboardingCompleted() {
         dataStore.edit { preferences ->
             preferences[ONBOARDING_COMPLETED] = true
+        }
+    }
+
+    // Fungsi baru untuk mengatur flag penyelesaian migrasi username lowercase
+    suspend fun setMigrationCompleted(completed: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[MIGRATION_COMPLETED] = completed
         }
     }
 
