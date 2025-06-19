@@ -21,8 +21,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Community Repository Implementation
- * "Implementasi real untuk community operations dengan Firestore"
+ * Community Repository Implementation - Complete
+ * "Implementasi lengkap untuk semua community operations dengan Firestore"
  */
 @RequiresApi(Build.VERSION_CODES.O)
 @Singleton
@@ -31,60 +31,74 @@ class CommunityRepositoryImpl @Inject constructor(
 ) : CommunityRepository {
 
     companion object {
-        private const val COLLECTION_COMMUNITY_POSTS = "community_posts"
+        // Use Constants for consistency across the app
         private const val COLLECTION_SUPPORT_REACTIONS = "support_reactions"
     }
 
+    // ============================================================================
+    // COMMUNITY FEED OPERATIONS
+    // ============================================================================
+
     override fun getAllCommunityPosts(): Flow<List<CommunityPost>> {
-        Timber.d("🌍 Getting all community posts")
-        return firestore.collection(COLLECTION_COMMUNITY_POSTS)
+        Timber.d("🌍 Getting all community posts from collection: ${Constants.COLLECTION_COMMUNITY_POSTS}")
+        return firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .snapshots()
             .map { snapshot ->
+                Timber.d("📄 Retrieved ${snapshot.documents.size} documents from Firestore")
                 val posts = snapshot.documents.mapNotNull { document ->
                     try {
-                        document.data?.toCommunityPost()
+                        Timber.d("🔄 Processing document: ${document.id}")
+                        document.data?.let { data ->
+                            Timber.d("📋 Document data keys: ${data.keys}")
+                            data.toCommunityPost()
+                        }
                     } catch (e: Exception) {
-                        Timber.e(e, "Error converting document to CommunityPost: ${document.id}")
+                        Timber.e(e, "❌ Error converting document to CommunityPost: ${document.id}")
                         null
                     }
                 }
-                Timber.d("🌍 Retrieved ${posts.size} community posts")
+                Timber.d("✅ Successfully converted ${posts.size} community posts")
                 posts
             }
             .catch { exception ->
-                Timber.e(exception, "❌ Error getting community posts")
+                Timber.e(exception, "❌ Error getting community posts from ${Constants.COLLECTION_COMMUNITY_POSTS}")
                 emit(emptyList())
             }
     }
 
     override fun getRecentCommunityPosts(limit: Int): Flow<List<CommunityPost>> {
-        Timber.d("🌍 Getting recent community posts (limit: $limit)")
-        return firestore.collection(COLLECTION_COMMUNITY_POSTS)
+        Timber.d("🌍 Getting recent community posts (limit: $limit) from collection: ${Constants.COLLECTION_COMMUNITY_POSTS}")
+        return firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .limit(limit.toLong())
             .snapshots()
             .map { snapshot ->
+                Timber.d("📄 Retrieved ${snapshot.documents.size} recent documents from Firestore")
                 val posts = snapshot.documents.mapNotNull { document ->
                     try {
-                        document.data?.toCommunityPost()
+                        Timber.d("🔄 Processing recent document: ${document.id}")
+                        document.data?.let { data ->
+                            Timber.d("📋 Document data keys: ${data.keys}")
+                            data.toCommunityPost()
+                        }
                     } catch (e: Exception) {
-                        Timber.e(e, "Error converting document to CommunityPost: ${document.id}")
+                        Timber.e(e, "❌ Error converting document to CommunityPost: ${document.id}")
                         null
                     }
                 }
-                Timber.d("🌍 Retrieved ${posts.size} recent community posts")
+                Timber.d("✅ Successfully converted ${posts.size} recent community posts")
                 posts
             }
             .catch { exception ->
-                Timber.e(exception, "❌ Error getting recent community posts")
+                Timber.e(exception, "❌ Error getting recent community posts from ${Constants.COLLECTION_COMMUNITY_POSTS}")
                 emit(emptyList())
             }
     }
 
     override fun getCommunityPostsByTags(tags: List<String>): Flow<List<CommunityPost>> {
-        Timber.d("🌍 Getting community posts by tags: $tags")
-        return firestore.collection(COLLECTION_COMMUNITY_POSTS)
+        Timber.d("🌍 Getting community posts by tags: $tags from collection: ${Constants.COLLECTION_COMMUNITY_POSTS}")
+        return firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
             .whereArrayContainsAny("tags", tags)
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .snapshots()
@@ -97,18 +111,22 @@ class CommunityRepositoryImpl @Inject constructor(
                         null
                     }
                 }
-                Timber.d("🌍 Retrieved ${posts.size} community posts with tags: $tags")
+                Timber.d("🌍 Retrieved ${posts.size} community posts with tags: $tags from ${Constants.COLLECTION_COMMUNITY_POSTS}")
                 posts
             }
             .catch { exception ->
-                Timber.e(exception, "❌ Error getting community posts by tags")
+                Timber.e(exception, "❌ Error getting community posts by tags from ${Constants.COLLECTION_COMMUNITY_POSTS}")
                 emit(emptyList())
             }
     }
 
+    // ============================================================================
+    // INDIVIDUAL POST OPERATIONS
+    // ============================================================================
+
     override fun getCommunityPost(postId: String): Flow<CommunityPost?> {
-        Timber.d("🌍 Getting community post: $postId")
-        return firestore.collection(COLLECTION_COMMUNITY_POSTS)
+        Timber.d("🌍 Getting community post: $postId from collection: ${Constants.COLLECTION_COMMUNITY_POSTS}")
+        return firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
             .document(postId)
             .snapshots()
             .map { snapshot ->
@@ -125,7 +143,7 @@ class CommunityRepositoryImpl @Inject constructor(
                 }
             }
             .catch { exception ->
-                Timber.e(exception, "❌ Error getting community post: $postId")
+                Timber.e(exception, "❌ Error getting community post: $postId from ${Constants.COLLECTION_COMMUNITY_POSTS}")
                 emit(null)
             }
     }
@@ -133,66 +151,70 @@ class CommunityRepositoryImpl @Inject constructor(
     override suspend fun createCommunityPost(post: CommunityPost): Result<String> {
         return try {
             Timber.d("🌍 ==================== CREATING COMMUNITY POST ====================")
-            Timber.d("🌍 Creating community post:")
+            Timber.d("🌍 Creating community post in collection: ${Constants.COLLECTION_COMMUNITY_POSTS}")
             Timber.d("  - Title: ${post.title}")
             Timber.d("  - Description length: ${post.description.length}")
             Timber.d("  - Chaos Level: ${post.chaosLevel}")
             Timber.d("  - Anonymous Username: ${post.anonymousUsername}")
             Timber.d("  - Tags: ${post.tags}")
 
-            val postMap = post.toFirestoreMap()
-            val documentRef = firestore.collection(COLLECTION_COMMUNITY_POSTS).document()
+            val postMap = post.toFirestoreMap().toMutableMap()
+            val documentRef = firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS).document()
 
             // Add the auto-generated ID to the map
             postMap["id"] = documentRef.id
 
             documentRef.set(postMap).await()
 
-            Timber.d("✅ Community post created successfully with ID: ${documentRef.id}")
+            Timber.d("✅ Community post created successfully with ID: ${documentRef.id} in ${Constants.COLLECTION_COMMUNITY_POSTS}")
             Result.success(documentRef.id)
 
         } catch (e: Exception) {
-            Timber.e(e, "❌ Error creating community post")
+            Timber.e(e, "❌ Error creating community post in ${Constants.COLLECTION_COMMUNITY_POSTS}")
             Result.failure(e)
         }
     }
 
     override suspend fun updateCommunityPost(postId: String, updates: Map<String, Any>): Result<Unit> {
         return try {
-            Timber.d("🌍 Updating community post: $postId")
+            Timber.d("🌍 Updating community post: $postId in collection: ${Constants.COLLECTION_COMMUNITY_POSTS}")
             Timber.d("  - Updates: $updates")
 
-            firestore.collection(COLLECTION_COMMUNITY_POSTS)
+            firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
                 .document(postId)
                 .update(updates)
                 .await()
 
-            Timber.d("✅ Community post updated successfully: $postId")
+            Timber.d("✅ Community post updated successfully: $postId in ${Constants.COLLECTION_COMMUNITY_POSTS}")
             Result.success(Unit)
 
         } catch (e: Exception) {
-            Timber.e(e, "❌ Error updating community post: $postId")
+            Timber.e(e, "❌ Error updating community post: $postId in ${Constants.COLLECTION_COMMUNITY_POSTS}")
             Result.failure(e)
         }
     }
 
     override suspend fun deleteCommunityPost(postId: String): Result<Unit> {
         return try {
-            Timber.d("🌍 Deleting community post: $postId")
+            Timber.d("🌍 Deleting community post: $postId from collection: ${Constants.COLLECTION_COMMUNITY_POSTS}")
 
-            firestore.collection(COLLECTION_COMMUNITY_POSTS)
+            firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
                 .document(postId)
                 .delete()
                 .await()
 
-            Timber.d("✅ Community post deleted successfully: $postId")
+            Timber.d("✅ Community post deleted successfully: $postId from ${Constants.COLLECTION_COMMUNITY_POSTS}")
             Result.success(Unit)
 
         } catch (e: Exception) {
-            Timber.e(e, "❌ Error deleting community post: $postId")
+            Timber.e(e, "❌ Error deleting community post: $postId from ${Constants.COLLECTION_COMMUNITY_POSTS}")
             Result.failure(e)
         }
     }
+
+    // ============================================================================
+    // SUPPORT AND INTERACTION OPERATIONS
+    // ============================================================================
 
     override suspend fun giveSupport(postId: String, userId: String, supportType: SupportType): Result<Unit> {
         return try {
@@ -213,7 +235,7 @@ class CommunityRepositoryImpl @Inject constructor(
             batch.set(supportRef, supportReaction)
 
             // Increment support count on post
-            val postRef = firestore.collection(COLLECTION_COMMUNITY_POSTS).document(postId)
+            val postRef = firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS).document(postId)
             batch.update(postRef, "supportCount", com.google.firebase.firestore.FieldValue.increment(1))
 
             batch.commit().await()
@@ -229,7 +251,7 @@ class CommunityRepositoryImpl @Inject constructor(
 
     override suspend fun removeSupport(postId: String, userId: String): Result<Unit> {
         return try {
-            Timber.d("💔 Removing support from post: $postId")
+            Timber.d("💔 Removing support from post: $postId for user: $userId")
 
             // Find and delete support reaction
             val supportQuery = firestore.collection(COLLECTION_SUPPORT_REACTIONS)
@@ -247,7 +269,7 @@ class CommunityRepositoryImpl @Inject constructor(
                 }
 
                 // Decrement support count on post
-                val postRef = firestore.collection(COLLECTION_COMMUNITY_POSTS).document(postId)
+                val postRef = firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS).document(postId)
                 batch.update(postRef, "supportCount", com.google.firebase.firestore.FieldValue.increment(-1))
 
                 batch.commit().await()
@@ -277,7 +299,7 @@ class CommunityRepositoryImpl @Inject constructor(
                 "status" to "pending"
             )
 
-            firestore.collection("post_reports")
+            firestore.collection(Constants.COLLECTION_REPORTS)
                 .add(reportData)
                 .await()
 
@@ -290,6 +312,10 @@ class CommunityRepositoryImpl @Inject constructor(
         }
     }
 
+    // ============================================================================
+    // CHAOS TWINS OPERATIONS
+    // ============================================================================
+
     override fun findChaosTwins(userId: String, tags: List<String>, chaosLevel: Int): Flow<List<CommunityPost>> {
         Timber.d("🔍 Finding chaos twins for user: $userId (tags: $tags, chaosLevel: $chaosLevel)")
 
@@ -297,7 +323,7 @@ class CommunityRepositoryImpl @Inject constructor(
         val minChaosLevel = (chaosLevel - 2).coerceAtLeast(1)
         val maxChaosLevel = (chaosLevel + 2).coerceAtMost(10)
 
-        return firestore.collection(COLLECTION_COMMUNITY_POSTS)
+        return firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
             .whereArrayContainsAny("tags", tags)
             .whereGreaterThanOrEqualTo("chaosLevel", minChaosLevel)
             .whereLessThanOrEqualTo("chaosLevel", maxChaosLevel)
@@ -323,11 +349,15 @@ class CommunityRepositoryImpl @Inject constructor(
             }
     }
 
+    // ============================================================================
+    // STATISTICS
+    // ============================================================================
+
     override suspend fun getCommunityStats(): Result<Map<String, Int>> {
         return try {
             Timber.d("📊 Getting community stats")
 
-            val postsSnapshot = firestore.collection(COLLECTION_COMMUNITY_POSTS).get().await()
+            val postsSnapshot = firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS).get().await()
             val supportSnapshot = firestore.collection(COLLECTION_SUPPORT_REACTIONS).get().await()
 
             val stats = mapOf(
