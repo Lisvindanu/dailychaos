@@ -20,8 +20,8 @@ import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import timber.log.Timber
 
 /**
- * Firebase Authentication Service - CLOUD FUNCTION FIRST APPROACH
- * "Biarkan Cloud Function yang handle semua logic kompleks!"
+ * Firebase Authentication Service - SIMPLIFIED SINGLE COLLECTION
+ * "Satu collection users aja, simple dan efektif!"
  */
 @Singleton
 class FirebaseAuthService @Inject constructor(
@@ -31,154 +31,225 @@ class FirebaseAuthService @Inject constructor(
     private val functions: FirebaseFunctions
 ) {
 
-    /**
-     * Get current authenticated user
-     */
     val currentUser: FirebaseUser?
         get() = firebaseAuth.currentUser
 
-    /**
-     * Check if user is authenticated
-     */
     fun isAuthenticated(): Boolean = currentUser != null
 
     /**
-     * Register with username - PURE Cloud Function approach
-     * "Cloud Function handle everything!"
+     * Register with username - Simple approach with single collection
      */
     suspend fun registerWithUsername(username: String, displayName: String): Result<FirebaseUser> {
         return try {
-            Timber.d("🎭 REGISTER with username: '$username', displayName: '$displayName'")
+            val trimmedUsername = username.trim()
+            val trimmedDisplayName = displayName.trim().ifBlank { trimmedUsername }
 
-            // Basic client-side validation only
-            if (username.isBlank()) {
+            Timber.d("🎭 REGISTER with username: '$trimmedUsername', displayName: '$trimmedDisplayName'")
+
+            // Basic validation
+            if (trimmedUsername.isBlank()) {
                 return Result.failure(Exception("Username tidak boleh kosong!"))
             }
-            if (username.length < 3) {
+            if (trimmedUsername.length < 3) {
                 return Result.failure(Exception("Username minimal 3 karakter."))
             }
+            if (trimmedUsername.length > 30) {
+                return Result.failure(Exception("Username maksimal 30 karakter."))
+            }
 
-            // Call Cloud Function for REGISTRATION
-            val data = hashMapOf(
-                "username" to username,
-                "displayName" to displayName.ifBlank { username },
-                "isRegistration" to true
-            )
-
-            Timber.d("📤 Sending to Cloud Function: $data")
-
-            val result = functions
-                .getHttpsCallable("generateCustomToken")
-                .call(data)
+            // Check if username already exists in users collection
+            val existingUser = firestore.collection("users")
+                .whereEqualTo("usernameLower", trimmedUsername.lowercase())
+                .limit(1)
+                .get()
                 .await()
 
-            val customTokenData = result.data as? Map<*, *>
-                ?: throw Exception("Cloud Function response is null")
+            if (!existingUser.isEmpty) {
+                return Result.failure(Exception("Username '$trimmedUsername' sudah dipakai!"))
+            }
 
-            val tokenString = customTokenData["customToken"] as? String
-                ?: throw Exception("Custom token missing from response")
+            // Create Firebase Auth user
+            val authResult = firebaseAuth.signInAnonymously().await()
+            val user = authResult.user ?: throw Exception("Failed to create user")
 
-            val userId = customTokenData["userId"] as? String
-                ?: throw Exception("UserId missing from response")
+            // Create user profile in Firestore
+            val currentDate = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
 
-            Timber.d("✅ Got custom token for userId: $userId")
+            val userProfile = mapOf(
+                "uid" to user.uid,
+                "userId" to user.uid,
+                "username" to trimmedUsername,
+                "usernameLower" to trimmedUsername.lowercase(), // For case-insensitive search
+                "displayName" to trimmedDisplayName,
+                "authType" to "username",
+                "bio" to "",
+                "email" to null,
+                "favoriteKonoSubaCharacter" to "",
+                "favoriteQuote" to "",
+                "profilePicture" to null,
+                "profileVersion" to 1,
+                "partyRole" to "Newbie Adventurer",
+                "chaosLevel" to 1,
+                "chaosEntries" to 0,
+                "chaosEntriesCount" to 0,
+                "totalEntries" to 0,
+                "dayStreak" to 0,
+                "longestStreak" to 0,
+                "streakDays" to 0,
+                "achievements" to emptyList<String>(),
+                "supportGiven" to 0,
+                "supportReceived" to 0,
+                "totalSupportGiven" to 0,
+                "totalSupportReceived" to 0,
+                "totalSupportsGiven" to 0,
+                "totalSupportsReceived" to 0,
+                "isActive" to true,
+                "isAnonymous" to false,
+                "settings" to mapOf(
+                    "notificationsEnabled" to true,
+                    "konoSubaQuotesEnabled" to true,
+                    "anonymousMode" to false,
+                    "reminderTime" to "20:00",
+                    "shareByDefault" to false,
+                    "theme" to "system",
+                    "showChaosLevel" to true
+                ),
+                "createdAt" to currentDate,
+                "joinDate" to currentDate,
+                "lastActiveAt" to currentDate,
+                "lastLogin" to currentDate,
+                "lastLoginDate" to currentDate
+            )
 
-            // Sign in with custom token
-            val authResult = firebaseAuth.signInWithCustomToken(tokenString).await()
-            val user = authResult.user ?: throw Exception("Sign in failed after getting token")
+            firestore.collection("users")
+                .document(user.uid)
+                .set(userProfile)
+                .await()
+
+            updateUserPreferences(user.uid, trimmedUsername, trimmedDisplayName, "username")
 
             Timber.d("🎉 Registration successful! UID: ${user.uid}")
-
-            // Update preferences - Cloud Function already created all data
-            updateUserPreferences(userId, username, displayName.ifBlank { username }, "username")
-
             Result.success(user)
 
         } catch (e: Exception) {
             Timber.e(e, "❌ Registration failed")
-
             val errorMessage = when {
-                e.message?.contains("already-exists") == true -> "Username '$username' sudah dipakai!"
-                e.message?.contains("invalid-argument") == true -> "Username tidak valid."
+                e.message?.contains("already exists") == true -> "Username sudah dipakai!"
                 e.message?.contains("network") == true -> "Koneksi bermasalah. Cek internet!"
                 else -> "Registrasi gagal: ${e.message}"
             }
-
             Result.failure(Exception(errorMessage))
         }
     }
 
     /**
-     * Login with username - PURE Cloud Function approach
-     * "Cloud Function verify everything!"
+     * Login with username - Simple lookup in users collection
      */
     suspend fun loginWithUsername(username: String): Result<FirebaseUser> {
         return try {
-            Timber.d("🏠 LOGIN with username: '$username'")
+            val trimmedUsername = username.trim()
 
-            if (username.isBlank()) {
+            Timber.d("🏠 LOGIN with username: '$trimmedUsername'")
+
+            if (trimmedUsername.isBlank()) {
                 return Result.failure(Exception("Username tidak boleh kosong!"))
             }
 
-            // Call Cloud Function for LOGIN
-            val data = hashMapOf(
-                "username" to username,
-                "isRegistration" to false
-            )
-
-            Timber.d("📤 Sending to Cloud Function: $data")
-
-            val result = functions
-                .getHttpsCallable("generateCustomToken")
-                .call(data)
+            // Find user by username in users collection
+            val userQuery = firestore.collection("users")
+                .whereEqualTo("usernameLower", trimmedUsername.lowercase())
+                .limit(1)
+                .get()
                 .await()
 
-            val customTokenData = result.data as? Map<*, *>
-                ?: throw Exception("Cloud Function response is null")
-
-            val tokenString = customTokenData["customToken"] as? String
-                ?: throw Exception("Custom token missing from response")
-
-            val userId = customTokenData["userId"] as? String
-                ?: throw Exception("UserId missing from response")
-
-            Timber.d("✅ Got custom token for userId: $userId")
-
-            // Sign in with custom token
-            val authResult = firebaseAuth.signInWithCustomToken(tokenString).await()
-            val user = authResult.user ?: throw Exception("Sign in failed after getting token")
-
-            Timber.d("🎉 Login successful! UID: ${user.uid}")
-
-            // Get user profile to update preferences
-            val profileData = getUserProfileData(userId)
-            if (profileData != null) {
-                updateUserPreferences(
-                    userId = userId,
-                    username = username,
-                    displayName = profileData["displayName"] as? String ?: username,
-                    authType = "username"
-                )
+            if (userQuery.isEmpty) {
+                return Result.failure(Exception("Username '$trimmedUsername' tidak ditemukan!"))
             }
 
+            val userDoc = userQuery.documents[0]
+            val userData = userDoc.data ?: throw Exception("User data not found")
+            val userId = userDoc.id
+
+            // Get the custom token using Cloud Function (if you still want to use it)
+            // OR create a custom token directly here
+            val customToken = try {
+                // Try using Cloud Function first
+                val data: Map<String, Any> = mapOf(
+                    "username" to trimmedUsername,
+                    "isRegistration" to false
+                )
+
+                val result = functions
+                    .getHttpsCallable("generateCustomToken")
+                    .call(data)
+                    .await()
+
+                val customTokenData = result.data as? Map<*, *>
+                    ?: throw Exception("Cloud Function response is null")
+
+                customTokenData["customToken"] as? String
+                    ?: throw Exception("Custom token missing from response")
+            } catch (e: Exception) {
+                Timber.w("Cloud Function failed, fallback to direct auth: ${e.message}")
+                // Fallback: Sign in anonymously and update the auth user
+                val authResult = firebaseAuth.signInAnonymously().await()
+                val tempUser = authResult.user ?: throw Exception("Failed to create auth session")
+
+                // Update the anonymous user with profile info
+                val profileUpdates = UserProfileChangeRequest.Builder()
+                    .setDisplayName(userData["displayName"] as? String ?: trimmedUsername)
+                    .build()
+                tempUser.updateProfile(profileUpdates).await()
+
+                // Update preferences and return success
+                updateUserPreferences(
+                    userId = tempUser.uid,
+                    username = trimmedUsername,
+                    displayName = userData["displayName"] as? String ?: trimmedUsername,
+                    authType = "username"
+                )
+
+                Timber.d("🎉 Login successful (fallback)! UID: ${tempUser.uid}")
+                return Result.success(tempUser)
+            }
+
+            // Sign in with custom token
+            val authResult = firebaseAuth.signInWithCustomToken(customToken).await()
+            val user = authResult.user ?: throw Exception("Sign in failed after getting token")
+
+            // Update last login
+            firestore.collection("users")
+                .document(userId)
+                .update(mapOf(
+                    "lastActiveAt" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
+                    "lastLogin" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
+                    "lastLoginDate" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                ))
+                .await()
+
+            updateUserPreferences(
+                userId = userId,
+                username = trimmedUsername,
+                displayName = userData["displayName"] as? String ?: trimmedUsername,
+                authType = "username"
+            )
+
+            Timber.d("🎉 Login successful! UID: ${user.uid}")
             Result.success(user)
 
         } catch (e: Exception) {
             Timber.e(e, "❌ Login failed")
-
             val errorMessage = when {
-                e.message?.contains("not-found") == true -> "Username '$username' tidak ditemukan."
-                e.message?.contains("invalid-argument") == true -> "Username tidak valid."
+                e.message?.contains("not found") == true -> "Username tidak ditemukan!"
                 e.message?.contains("network") == true -> "Koneksi bermasalah. Cek internet!"
                 else -> "Login gagal: ${e.message}"
             }
-
             Result.failure(Exception(errorMessage))
         }
     }
 
     /**
-     * Register with email - LOCAL approach (no Cloud Function)
+     * Register with email - Create directly in users collection
      */
     suspend fun registerWithEmail(email: String, password: String, displayName: String): Result<FirebaseUser> {
         return try {
@@ -222,7 +293,7 @@ class FirebaseAuthService @Inject constructor(
     }
 
     /**
-     * Login with email - DIRECT Firebase Auth
+     * Login with email
      */
     suspend fun loginWithEmail(email: String, password: String): Result<FirebaseUser> {
         return try {
@@ -257,7 +328,7 @@ class FirebaseAuthService @Inject constructor(
     }
 
     /**
-     * Register anonymous user - LOCAL approach
+     * Register anonymous user
      */
     suspend fun registerAnonymous(username: String, displayName: String): Result<FirebaseUser> {
         return try {
@@ -289,9 +360,6 @@ class FirebaseAuthService @Inject constructor(
         }
     }
 
-    /**
-     * Helper: Update user preferences
-     */
     private suspend fun updateUserPreferences(
         userId: String,
         username: String,
@@ -313,9 +381,6 @@ class FirebaseAuthService @Inject constructor(
         Timber.d("✅ User preferences updated for: $displayName ($authType)")
     }
 
-    /**
-     * Helper: Get user profile data from Firestore
-     */
     private suspend fun getUserProfileData(userId: String): Map<String, Any>? {
         return try {
             val document = firestore.collection("users")
@@ -335,9 +400,6 @@ class FirebaseAuthService @Inject constructor(
         }
     }
 
-    /**
-     * Create user profile in Firestore (for email/anonymous only)
-     */
     private suspend fun createUserProfile(
         userId: String,
         username: String?,
@@ -348,10 +410,11 @@ class FirebaseAuthService @Inject constructor(
         return try {
             val currentDate = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
 
-            val userProfile = hashMapOf<String, Any?>(
+            val userProfile = mapOf<String, Any?>(
                 "uid" to userId,
                 "userId" to userId,
                 "username" to username,
+                "usernameLower" to username?.lowercase(), // For case-insensitive search
                 "displayName" to displayName,
                 "email" to email,
                 "authType" to authType,
@@ -398,19 +461,6 @@ class FirebaseAuthService @Inject constructor(
                 .set(userProfile)
                 .await()
 
-            // Create username mapping for anonymous (not email)
-            if (!username.isNullOrBlank() && authType == "anonymous") {
-                firestore.collection("usernames")
-                    .document(username.lowercase())
-                    .set(mapOf(
-                        "userId" to userId,
-                        "username" to username,
-                        "createdAt" to currentDate,
-                        "authType" to authType
-                    ))
-                    .await()
-            }
-
             Timber.d("✅ User profile created for: $userId")
             Result.success(Unit)
 
@@ -420,9 +470,6 @@ class FirebaseAuthService @Inject constructor(
         }
     }
 
-    /**
-     * Get user profile (public method)
-     */
     suspend fun getUserProfile(): Result<Map<String, Any>> {
         val user = currentUser ?: return Result.failure(Exception("Tidak ada user yang login"))
         return getUserProfile(user.uid)
@@ -437,9 +484,6 @@ class FirebaseAuthService @Inject constructor(
         }
     }
 
-    /**
-     * Update user profile
-     */
     suspend fun updateUserProfile(updates: Map<String, Any>): Result<Unit> {
         return try {
             val user = currentUser ?: throw Exception("Tidak ada user yang login")
@@ -457,25 +501,24 @@ class FirebaseAuthService @Inject constructor(
         }
     }
 
-    /**
-     * Check username availability (optional - Cloud Function also checks)
-     */
     suspend fun checkUsernameAvailability(username: String): Boolean {
         return try {
-            val document = firestore.collection("usernames")
-                .document(username.lowercase())
+            val trimmedUsername = username.trim()
+            if (trimmedUsername.isBlank()) return false
+
+            val document = firestore.collection("users")
+                .whereEqualTo("usernameLower", trimmedUsername.lowercase())
+                .limit(1)
                 .get()
                 .await()
-            !document.exists()
+
+            document.isEmpty
         } catch (e: Exception) {
             Timber.e(e, "❌ Error checking username availability")
             false
         }
     }
 
-    /**
-     * Logout
-     */
     suspend fun logout(): Result<Unit> {
         return try {
             firebaseAuth.signOut()
@@ -488,24 +531,13 @@ class FirebaseAuthService @Inject constructor(
         }
     }
 
-    /**
-     * Delete account
-     */
     suspend fun deleteAccount(): Result<Unit> {
         return try {
             val user = currentUser ?: throw Exception("Tidak ada user yang login")
             val userId = user.uid
 
-            // Delete from Firestore
+            // Delete from Firestore users collection only
             firestore.collection("users").document(userId).delete().await()
-
-            // Delete username mapping if exists
-            val usernameQuery = firestore.collection("usernames")
-                .whereEqualTo("userId", userId)
-                .get()
-                .await()
-
-            usernameQuery.documents.forEach { it.reference.delete().await() }
 
             // Delete from Firebase Auth
             user.delete().await()
@@ -521,9 +553,6 @@ class FirebaseAuthService @Inject constructor(
         }
     }
 
-    /**
-     * Generate random username
-     */
     fun generateRandomUsername(): String {
         val adjectives = listOf("Epic", "Chaos", "Brave", "Wild", "Cool", "Swift", "Bold", "Lucky")
         val nouns = listOf("Adventurer", "Hero", "Warrior", "Mage", "Explorer", "Knight", "Rogue", "Wizard")

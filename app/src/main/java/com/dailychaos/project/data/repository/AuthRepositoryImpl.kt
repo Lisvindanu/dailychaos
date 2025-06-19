@@ -6,6 +6,8 @@ import androidx.annotation.RequiresApi
 import com.dailychaos.project.data.remote.firebase.FirebaseAuthService
 import com.dailychaos.project.domain.model.AuthState
 import com.dailychaos.project.domain.model.User
+import com.dailychaos.project.domain.model.UserProfile
+import com.dailychaos.project.domain.model.UserProfilePreferences
 import com.dailychaos.project.domain.model.UsernameValidation
 import com.dailychaos.project.domain.repository.AuthRepository
 import com.dailychaos.project.preferences.UserPreferences
@@ -298,8 +300,81 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getUserProfile(userId: String?): Result<UserProfile> {
+        Timber.d("AuthRepositoryImpl: getUserProfile called for userId: $userId")
+        return try {
+            val targetUserId = userId ?: firebaseAuthService.currentUser?.uid
+            if (targetUserId == null) {
+                return Result.failure(Exception("Tidak ada user yang login"))
+            }
+
+            val profileResult = firebaseAuthService.getUserProfile(targetUserId)
+            if (profileResult.isSuccess) {
+                val profileData = profileResult.getOrThrow()
+                val userProfile = mapFirebaseProfileToUserProfile(profileData)
+                Result.success(userProfile)
+            } else {
+                Result.failure(profileResult.exceptionOrNull() ?: Exception("Gagal mengambil profil pengguna"))
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "AuthRepositoryImpl: Error getting user profile")
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun checkUsernameAvailability(username: String): Boolean {
+        Timber.d("AuthRepositoryImpl: checkUsernameAvailability called for: $username")
+        return try {
+            firebaseAuthService.checkUsernameAvailability(username)
+        } catch (e: Exception) {
+            Timber.e(e, "AuthRepositoryImpl: Error checking username availability")
+            false
+        }
+    }
+
+    override fun generateRandomUsername(): String {
+        Timber.d("AuthRepositoryImpl: generateRandomUsername called")
+        return firebaseAuthService.generateRandomUsername()
+    }
+
+
+    // Helper function to map Firebase profile to UserProfile domain model
+    private fun mapFirebaseProfileToUserProfile(profile: Map<String, Any>): UserProfile {
+        fun parseLongToInt(value: Any?): Int {
+            return (value as? Long ?: 0L).toInt()
+        }
+
+        val settings = profile["settings"] as? Map<String, Any> ?: emptyMap()
+
+        return UserProfile(
+            userId = profile["userId"] as? String ?: profile["uid"] as? String ?: "",
+            username = profile["username"] as? String,
+            displayName = profile["displayName"] as? String ?: "",
+            email = profile["email"] as? String,
+            chaosEntries = parseLongToInt(profile["chaosEntries"] ?: profile["chaosEntriesCount"]),
+            dayStreak = parseLongToInt(profile["dayStreak"]),
+            supportGiven = parseLongToInt(profile["supportGiven"] ?: profile["totalSupportsGiven"]),
+            joinDate = profile["joinDate"] as? String ?: profile["createdAt"] as? String ?: "",
+            authType = profile["authType"] as? String ?: "username",
+            profilePicture = profile["profilePicture"] as? String,
+            bio = profile["bio"] as? String ?: "",
+            chaosLevel = parseLongToInt(profile["chaosLevel"]),
+            partyRole = profile["partyRole"] as? String ?: "Newbie Adventurer",
+            isActive = profile["isActive"] as? Boolean ?: true,
+            lastLoginDate = profile["lastLoginDate"] as? String ?: profile["lastActiveAt"] as? String,
+            achievements = (profile["achievements"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+            preferences = UserProfilePreferences(
+                shareByDefault = settings["shareByDefault"] as? Boolean ?: false,
+                showChaosLevel = settings["showChaosLevel"] as? Boolean ?: true,
+                enableNotifications = settings["notificationsEnabled"] as? Boolean ?: true,
+                publicProfile = true, // Default value since not in Firebase
+                showEmail = false // Default value since not in Firebase
+            )
+        )
+    }
+
     @RequiresApi(Build.VERSION_CODES.O)
-    suspend fun registerAnonymous(username: String, displayName: String): Result<User> {
+    override suspend fun registerAnonymous(username: String, displayName: String): Result<User> {
         Timber.d("AuthRepositoryImpl: Attempting to register anonymous user: $username, displayName: $displayName")
         return try {
             // Basic validation for anonymous registration
