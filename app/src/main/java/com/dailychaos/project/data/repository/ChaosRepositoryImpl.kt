@@ -11,8 +11,12 @@ import com.dailychaos.project.data.mapper.toFirestoreMap
 import com.dailychaos.project.domain.model.ChaosEntry
 import com.dailychaos.project.domain.repository.ChaosRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 import timber.log.Timber // Import Timber for logging
@@ -32,6 +36,7 @@ class ChaosRepositoryImpl @Inject constructor(
         return authService.currentUser?.uid ?: throw IllegalStateException("User not authenticated.")
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override suspend fun createChaosEntry(userId: String, entry: ChaosEntry): Result<String> {
         return try {
             Timber.d("🚀 ==================== REPOSITORY CREATE CHAOS ENTRY STARTED ====================")
@@ -46,6 +51,8 @@ class ChaosRepositoryImpl @Inject constructor(
             Timber.d("  - Mini Wins: ${entry.miniWins}")
             Timber.d("  - Tags: ${entry.tags}")
             Timber.d("  - Share to Community: ${entry.isSharedToCommunity}")
+            Timber.d("  - Created At: ${entry.createdAt}")
+            Timber.d("  - Updated At: ${entry.updatedAt}")
 
             // Validate input
             if (userId.isBlank()) {
@@ -68,9 +75,22 @@ class ChaosRepositoryImpl @Inject constructor(
 
             Timber.d("✅ Repository validation passed")
 
+            // Ensure entry has proper timestamps
+            val now = Clock.System.now()
+            val entryWithTimestamps = if (entry.createdAt == Instant.DISTANT_PAST) {
+                entry.copy(
+                    createdAt = now,
+                    updatedAt = now
+                )
+            } else {
+                entry.copy(updatedAt = now)
+            }
+
+            Timber.d("🕐 Timestamps set - CreatedAt: ${entryWithTimestamps.createdAt}, UpdatedAt: ${entryWithTimestamps.updatedAt}")
+
             // Convert to request DTO
             Timber.d("🔄 ==================== CONVERTING TO REQUEST DTO ====================")
-            val request = entry.toChaosEntryRequest()
+            val request = entryWithTimestamps.toChaosEntryRequest()
 
             Timber.d("🔄 Converted to ChaosEntryRequest:")
             Timber.d("  - Title: '${request.title}'")
@@ -127,32 +147,122 @@ class ChaosRepositoryImpl @Inject constructor(
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    override fun getChaosEntry(userId: String, entryId: String): Flow<ChaosEntry?> {
-        Timber.d("📖 Getting chaos entry: userId=$userId, entryId=$entryId")
-        return firestoreService.getChaosEntry(userId, entryId).map { map ->
-            val entry = map?.toChaosEntry()
-            Timber.d("📖 Retrieved chaos entry: ${entry?.title ?: "NULL"}")
-            entry
+    override suspend fun getChaosEntry(userId: String, entryId: String): Flow<ChaosEntry?> {
+        return try {
+            Timber.d("🔍 Getting single chaos entry: userId=$userId, entryId=$entryId")
+
+            firestoreService.getChaosEntry(userId, entryId)
+                .map { firestoreData ->
+                    firestoreData?.let { data ->
+                        try {
+                            Timber.d("🔄 Converting firestore data to ChaosEntry")
+                            Timber.d("  - Raw data keys: ${data.keys}")
+                            Timber.d("  - CreatedAt raw: ${data["createdAt"]} (${data["createdAt"]?.javaClass?.simpleName})")
+                            Timber.d("  - UpdatedAt raw: ${data["updatedAt"]} (${data["updatedAt"]?.javaClass?.simpleName})")
+
+                            val chaosEntry = data.toChaosEntry()
+                            Timber.d("✅ Successfully converted to ChaosEntry: ${chaosEntry.id}")
+                            chaosEntry
+                        } catch (e: Exception) {
+                            Timber.e(e, "❌ Error converting firestore data to ChaosEntry")
+                            Timber.e("  - Raw data: $data")
+                            null
+                        }
+                    }
+                }
+                .catch { e ->
+                    Timber.e(e, "❌ Error getting chaos entry")
+                    emit(null)
+                }
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error in getChaosEntry")
+            flowOf(null)
         }
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    override fun getAllChaosEntries(userId: String): Flow<List<ChaosEntry>> {
-        Timber.d("📚 Getting all chaos entries for user: $userId")
-        return firestoreService.getChaosEntries(userId).map { listMap ->
-            val entries = listMap.map { it.toChaosEntry() }
-            Timber.d("📚 Retrieved ${entries.size} chaos entries")
-            entries
+    override suspend fun getAllChaosEntries(userId: String): Flow<List<ChaosEntry>> {
+        return try {
+            Timber.d("🔍 Getting all chaos entries for user: $userId")
+
+            firestoreService.getChaosEntries(userId, null)
+                .map { firestoreDataList ->
+                    val chaosEntries = firestoreDataList.mapNotNull { firestoreData ->
+                        try {
+                            Timber.d("🔄 Converting entry: ${firestoreData["id"]}")
+                            firestoreData.toChaosEntry()
+                        } catch (e: Exception) {
+                            Timber.e(e, "❌ Error converting firestore data to ChaosEntry for entry: ${firestoreData["id"]}")
+                            null
+                        }
+                    }
+                    Timber.d("✅ Successfully converted ${chaosEntries.size} chaos entries")
+                    chaosEntries
+                }
+                .catch { e ->
+                    Timber.e(e, "❌ Error getting all chaos entries")
+                    emit(emptyList())
+                }
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error in getAllChaosEntries")
+            flowOf(emptyList())
         }
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    override fun getRecentChaosEntries(userId: String, limit: Int): Flow<List<ChaosEntry>> {
-        Timber.d("📚 Getting recent chaos entries for user: $userId, limit: $limit")
-        return firestoreService.getChaosEntries(userId, limit.toLong()).map { listMap ->
-            val entries = listMap.map { it.toChaosEntry() }
-            Timber.d("📚 Retrieved ${entries.size} recent chaos entries")
-            entries
+    override suspend fun getChaosEntriesByDateRange(
+        userId: String,
+        startDate: String,
+        endDate: String
+    ): Flow<List<ChaosEntry>> {
+        return try {
+            Timber.d("🔍 Getting chaos entries by date range: userId=$userId, start=$startDate, end=$endDate")
+
+            // For now, get all entries and filter by date
+            // TODO: Implement date range query in FirestoreService
+            getAllChaosEntries(userId)
+                .map { entries ->
+                    entries.filter { entry ->
+                        val entryDateString = entry.createdAt.toString()
+                        // Simple date comparison - you might want to use proper date parsing
+                        entryDateString >= startDate && entryDateString <= endDate
+                    }
+                }
+                .catch { e ->
+                    Timber.e(e, "❌ Error getting chaos entries by date range")
+                    emit(emptyList())
+                }
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error in getChaosEntriesByDateRange")
+            flowOf(emptyList())
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    override suspend fun getRecentChaosEntries(userId: String, limit: Int): Flow<List<ChaosEntry>> {
+        return try {
+            Timber.d("🔍 Getting recent chaos entries for user: $userId, limit: $limit")
+
+            firestoreService.getChaosEntries(userId, limit.toLong())
+                .map { firestoreDataList ->
+                    val chaosEntries = firestoreDataList.mapNotNull { firestoreData ->
+                        try {
+                            firestoreData.toChaosEntry()
+                        } catch (e: Exception) {
+                            Timber.e(e, "❌ Error converting firestore data to ChaosEntry")
+                            null
+                        }
+                    }
+                    Timber.d("✅ Successfully converted ${chaosEntries.size} chaos entries")
+                    chaosEntries
+                }
+                .catch { e ->
+                    Timber.e(e, "❌ Error getting recent chaos entries")
+                    emit(emptyList())
+                }
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error in getRecentChaosEntries")
+            flowOf(emptyList())
         }
     }
 
@@ -160,7 +270,11 @@ class ChaosRepositoryImpl @Inject constructor(
     override suspend fun updateChaosEntry(userId: String, entry: ChaosEntry): Result<Unit> {
         return try {
             Timber.d("✏️ Updating chaos entry: userId=$userId, entryId=${entry.id}")
-            val result = firestoreService.updateChaosEntry(userId, entry.id, entry.toFirestoreMap())
+
+            // Update timestamp
+            val entryWithUpdatedTimestamp = entry.copy(updatedAt = Clock.System.now())
+
+            val result = firestoreService.updateChaosEntry(userId, entry.id, entryWithUpdatedTimestamp.toFirestoreMap())
 
             result.fold(
                 onSuccess = {
