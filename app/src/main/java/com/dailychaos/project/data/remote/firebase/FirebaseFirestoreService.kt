@@ -1,6 +1,8 @@
 // File: app/src/main/java/com/dailychaos/project/data/remote/firebase/FirebaseFirestoreService.kt
 package com.dailychaos.project.data.remote.firebase
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import com.dailychaos.project.data.remote.dto.request.ChaosEntryRequest
 import com.dailychaos.project.util.Constants
 import com.google.firebase.auth.FirebaseAuth
@@ -14,6 +16,8 @@ import kotlinx.coroutines.tasks.await
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.dailychaos.project.domain.model.CommunityPost
+import kotlinx.datetime.toJavaInstant
 
 /**
  * Firebase Firestore Service - Enhanced dengan Comprehensive Debug Logging
@@ -327,4 +331,74 @@ class FirebaseFirestoreService @Inject constructor(
             Result.failure(e)
         }
     }
+
+
+    /**
+     * Creates a new community post in the global community_posts collection.
+     * This method is called when a user chooses to share their chaos entry to the community.
+     * "Membagikan cerita chaos ke seluruh komunitas petualang!"
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    suspend fun createCommunityPost(communityPost: CommunityPost): Result<String> {
+        return try {
+            Timber.d("🚀 ==================== FIRESTORE CREATE COMMUNITY POST STARTED ====================")
+            Timber.d("🚀 Input CommunityPost:")
+            Timber.d("  - Post ID: '${communityPost.id}'")
+            Timber.d("  - User ID (Original): '${communityPost.userId}'") // Keep original for reference
+            Timber.d("  - Username: '${communityPost.username}'")
+            Timber.d("  - Title: '${communityPost.title}'")
+            Timber.d("  - Content length: ${communityPost.description.length}")
+            Timber.d("  - Chaos Level: ${communityPost.chaosLevel}")
+            Timber.d("  - Is Anonymous: ${communityPost.isAnonymous}")
+
+            // 1. Validasi authentication (ensure a user is still authenticated)
+            Timber.d("🔐 Community Post Auth Validation:")
+            val currentUser = FirebaseAuth.getInstance().currentUser
+            if (currentUser == null) {
+                Timber.e("❌ No authenticated user found for community post creation")
+                return Result.failure(Exception("User not authenticated for community post"))
+            }
+
+            // Generate document reference and ID if not provided (should be provided from mapper)
+            val communityPostRef = firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS).document(communityPost.id)
+
+            Timber.d("📍 Community Post Document reference created:")
+            Timber.d("  - Document path: ${communityPostRef.path}")
+            Timber.d("  - Post ID: ${communityPostRef.id}")
+
+            // Build data for the community post
+            val data = hashMapOf(
+                "id" to communityPost.id,
+                "userId" to communityPost.userId, // Storing original userId for internal linking/moderation
+                "username" to communityPost.username,
+                "title" to communityPost.title,
+                "content" to communityPost.description, // Use description as content
+                "chaosLevel" to communityPost.chaosLevel,
+                "miniWins" to communityPost.miniWins,
+                "tags" to communityPost.tags,
+                "isAnonymous" to communityPost.isAnonymous,
+                "createdAt" to Timestamp(communityPost.createdAt.toJavaInstant()),
+                "supportCount" to communityPost.supportCount // Initial support count
+            )
+
+            Timber.d("📦 Community Post Data prepared for Firestore:")
+            Timber.d("  - Document ID: ${data["id"]}")
+            Timber.d("  - Is Anonymous: ${data["isAnonymous"]}")
+            Timber.d("  - Title: ${data["title"]}")
+
+
+            // Set the document in the community_posts collection
+            communityPostRef.set(data).await()
+
+            Timber.d("✅ Community post written to Firestore successfully!")
+            Timber.d("✅ Community Post ID: ${communityPostRef.id}")
+
+            Result.success(communityPostRef.id)
+
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error creating community post in Firestore")
+            Result.failure(e)
+        }
+    }
+
 }
