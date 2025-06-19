@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -163,7 +164,8 @@ private fun WelcomeHeaderWithStats(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
+            // DIUBAH: Menggunakan warna primer (WoodBrown) agar lebih menonjol
+            containerColor = MaterialTheme.colorScheme.primary
         )
     ) {
         Column(
@@ -176,25 +178,23 @@ private fun WelcomeHeaderWithStats(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                // --- AWAL PERUBAHAN ---
                 text = if (user != null) {
-                    // Prioritaskan displayName, jika kosong baru pakai anonymousUsername.
-                    // Jika keduanya kosong, sapa sebagai "Adventurer".
                     val nameToShow = if (user.displayName.isNotBlank()) user.displayName else user.anonymousUsername
                     if (nameToShow.isNotBlank()) "Welcome back, $nameToShow!" else "Welcome, Adventurer!"
                 } else {
                     "Welcome to Daily Chaos!"
                 },
-                // --- AKHIR PERUBAHAN ---
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                // DIUBAH: Menggunakan warna onPrimary (Parchment) untuk kontras
+                color = MaterialTheme.colorScheme.onPrimary,
                 textAlign = TextAlign.Center
             )
             Text(
                 text = "Ready for today's adventure?",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                // DIUBAH: Menggunakan warna onPrimary (Parchment) untuk kontras
+                color = MaterialTheme.colorScheme.onPrimary,
                 textAlign = TextAlign.Center
             )
 
@@ -202,7 +202,8 @@ private fun WelcomeHeaderWithStats(
             if (!isStatsLoading && (todayStats.entriesCount > 0 || todayStats.miniWinsCount > 0)) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Divider(
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.3f),
+                    // DIUBAH: Disesuaikan untuk kontras
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f),
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -215,21 +216,27 @@ private fun WelcomeHeaderWithStats(
                         QuickStatItem(
                             emoji = "📝",
                             value = todayStats.entriesCount.toString(),
-                            label = "Entries Today"
+                            label = "Entries Today",
+                            // DIUBAH: Mengirimkan warna yang tepat
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         )
                     }
                     if (todayStats.miniWinsCount > 0) {
                         QuickStatItem(
                             emoji = "🏆",
                             value = todayStats.miniWinsCount.toString(),
-                            label = "Mini Wins"
+                            label = "Mini Wins",
+                            // DIUBAH: Mengirimkan warna yang tepat
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         )
                     }
                     if (todayStats.supportGivenCount > 0) {
                         QuickStatItem(
                             emoji = "💙",
                             value = todayStats.supportGivenCount.toString(),
-                            label = "Support Given"
+                            label = "Support Given",
+                            // DIUBAH: Mengirimkan warna yang tepat
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         )
                     }
                 }
@@ -242,7 +249,9 @@ private fun WelcomeHeaderWithStats(
 private fun QuickStatItem(
     emoji: String,
     value: String,
-    label: String
+    label: String,
+    // DIUBAH: Menambahkan parameter warna
+    contentColor: Color
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
@@ -255,12 +264,14 @@ private fun QuickStatItem(
             text = value,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
+            // DIUBAH: Menggunakan warna dari parameter
+            color = contentColor
         )
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+            // DIUBAH: Menggunakan warna dari parameter dengan sedikit transparansi
+            color = contentColor.copy(alpha = 0.8f)
         )
     }
 }

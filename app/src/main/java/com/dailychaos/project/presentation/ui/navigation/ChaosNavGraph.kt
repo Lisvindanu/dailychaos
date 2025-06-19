@@ -102,7 +102,6 @@ fun ChaosNavGraph(
         )
     }
 }
-
 @Composable
 private fun ChaosBottomNavigationBar(
     currentRoute: String?,
@@ -110,7 +109,8 @@ private fun ChaosBottomNavigationBar(
 ) {
     NavigationBar(
         modifier = Modifier.height(80.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceVariant
+        // DIUBAH: Menggunakan warna primer (WoodBrown) yang lebih gelap
+        containerColor = MaterialTheme.colorScheme.primary
     ) {
         Row(
             modifier = Modifier
@@ -139,15 +139,16 @@ private fun ChaosBottomNavigationBar(
                     .size(56.dp)
                     .border(
                         width = 2.dp,
-                        color = MaterialTheme.colorScheme.outline,
+                        // DIUBAH: Menggunakan warna onPrimary yang lebih terang untuk border
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f),
                         shape = CircleShape
                     )
                     .clip(CircleShape)
                     .background(
                         if (currentRoute == ChaosDestinations.CREATE_CHAOS_ROUTE)
-                            MaterialTheme.colorScheme.primary
-                        else
                             MaterialTheme.colorScheme.primaryContainer
+                        else
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -158,7 +159,8 @@ private fun ChaosBottomNavigationBar(
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "Create Chaos",
-                        tint = MaterialTheme.colorScheme.primary,
+                        // DIUBAH: Menggunakan warna onPrimaryContainer untuk kontras
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -194,10 +196,11 @@ private fun ChaosBottomNavItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
+            // DIUBAH: Tint disesuaikan untuk kontras dengan background gelap
             tint = if (isSelected)
-                MaterialTheme.colorScheme.primary
+                MaterialTheme.colorScheme.onPrimary // Warna terang (Parchment) untuk kontras
             else
-                MaterialTheme.colorScheme.onSurfaceVariant,
+                MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f), // Versi lebih redup
             modifier = Modifier.size(24.dp)
         )
     }
