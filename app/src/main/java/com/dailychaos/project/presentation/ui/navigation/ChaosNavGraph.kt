@@ -3,8 +3,19 @@ package com.dailychaos.project.presentation.ui.navigation
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -196,20 +207,46 @@ private fun ChaosBottomNavItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier.size(48.dp)
+    val animatedColor by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f),
+        animationSpec = tween(durationMillis = 200), label = "icon_color_anim"
+    )
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null, // No ripple effect
+                onClick = onClick
+            )
+            .height(64.dp) // Fixed height to prevent layout jumps
+            .padding(horizontal = 4.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            // DIUBAH: Tint disesuaikan untuk kontras dengan background gelap
-            tint = if (isSelected)
-                MaterialTheme.colorScheme.onPrimary // Warna terang (Parchment) untuk kontras
-            else
-                MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f), // Versi lebih redup
+            tint = animatedColor,
             modifier = Modifier.size(24.dp)
         )
+
+        // Animated dot indicator
+        AnimatedVisibility(
+            visible = isSelected,
+            enter = scaleIn(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
+            exit = scaleOut(animationSpec = tween(150)) + fadeOut()
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .size(6.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.onPrimary, // Dot color
+                        shape = CircleShape
+                    )
+            )
+        }
     }
 }
 
