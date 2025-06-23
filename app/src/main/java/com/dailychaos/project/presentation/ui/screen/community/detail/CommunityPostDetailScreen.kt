@@ -23,6 +23,7 @@ import com.dailychaos.project.domain.model.SupportType
 import com.dailychaos.project.presentation.ui.component.ChaosLevelBadge
 import com.dailychaos.project.presentation.ui.component.ErrorMessage
 import com.dailychaos.project.presentation.ui.component.LoadingIndicator
+import com.dailychaos.project.presentation.ui.component.MeguminSadModal
 import com.dailychaos.project.util.toFriendlyDateString
 import com.dailychaos.project.util.toTimeString
 import kotlinx.coroutines.flow.collectLatest
@@ -34,26 +35,65 @@ fun CommunityPostDetailScreen(
     postId: String,
     viewModel: CommunityPostDetailViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit,
+    onNavigateToLogin: () -> Unit = {},
     onNavigateToSupport: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // State untuk Megumin modal
+    var showMeguminModal by remember { mutableStateOf(false) }
+    var isRemovingSupportMode by remember { mutableStateOf(false) }
+
+    // Load post when screen starts
+    LaunchedEffect(postId) {
+        viewModel.loadPost(postId)
+    }
+
+    // Handle events
     LaunchedEffect(Unit) {
         viewModel.events.collectLatest { event ->
             when (event) {
-                is CommunityPostDetailViewModel.CommunityPostDetailScreenEvent.SupportGiven -> {
+                is CommunityPostDetailScreenEvent.SupportGiven -> {
                     snackbarHostState.showSnackbar("Support sent to fellow adventurer! 💝")
                 }
-                is CommunityPostDetailViewModel.CommunityPostDetailScreenEvent.SupportRemoved -> {
+                is CommunityPostDetailScreenEvent.SupportTypeChanged -> {
+                    snackbarHostState.showSnackbar("Support type changed! Keep supporting! 💙")
+                }
+                is CommunityPostDetailScreenEvent.SupportRemoved -> {
                     snackbarHostState.showSnackbar("Support removed")
                 }
-                is CommunityPostDetailViewModel.CommunityPostDetailScreenEvent.PostReported -> {
+                is CommunityPostDetailScreenEvent.PostReported -> {
                     snackbarHostState.showSnackbar("Post reported. Thank you for keeping our community safe.")
+                }
+                is CommunityPostDetailScreenEvent.NavigateToLogin -> {
+                    onNavigateToLogin()
+                }
+                is CommunityPostDetailScreenEvent.ShowMeguminSadModal -> {
+                    showMeguminModal = true
+                    isRemovingSupportMode = uiState.currentUserSupportType != null
+                }
+                is CommunityPostDetailScreenEvent.ShowMessage -> {
+                    snackbarHostState.showSnackbar(event.message)
                 }
             }
         }
     }
+
+    // Megumin Sad Modal
+    MeguminSadModal(
+        isVisible = showMeguminModal,
+        onDismiss = {
+            showMeguminModal = false
+            isRemovingSupportMode = false
+        },
+        onConfirmRemoval = {
+            showMeguminModal = false
+            isRemovingSupportMode = false
+            viewModel.confirmRemoveSupport()
+        },
+        isRemovingSupport = isRemovingSupportMode
+    )
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -68,7 +108,7 @@ fun CommunityPostDetailScreen(
                 actions = {
                     // Only show actions if post is loaded
                     uiState.post?.let {
-                        IconButton(onClick = { viewModel.onEvent(CommunityPostDetailEvent.ShowReportDialog) }) {
+                        IconButton(onClick = { viewModel.reportPost("Inappropriate content") }) {
                             Icon(Icons.Default.Flag, "Report Post")
                         }
                     }
@@ -88,11 +128,13 @@ fun CommunityPostDetailScreen(
                 )
                 uiState.error != null -> ErrorMessage(
                     message = uiState.error!!,
-                    onRetryClick = { viewModel.onEvent(CommunityPostDetailEvent.Retry) },
+                    onRetryClick = { viewModel.retry() },
                     modifier = Modifier.align(Alignment.Center).padding(16.dp)
                 )
                 uiState.post != null -> {
                     val post = uiState.post!!
+                    val currentUserSupportType = uiState.currentUserSupportType
+
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -178,11 +220,15 @@ fun CommunityPostDetailScreen(
 
                         Spacer(Modifier.height(32.dp))
 
-                        // Support Section
+                        // Enhanced Support Section
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                containerColor = if (currentUserSupportType != null) {
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                }
                             )
                         ) {
                             Column(
@@ -195,11 +241,19 @@ fun CommunityPostDetailScreen(
                                     Icon(
                                         Icons.Default.Favorite,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
+                                        tint = if (currentUserSupportType != null) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        }
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Text(
-                                        "Support this fellow adventurer",
+                                        if (currentUserSupportType != null) {
+                                            "You're supporting this adventurer! ${getSupportEmoji(currentUserSupportType)}"
+                                        } else {
+                                            "Support this fellow adventurer"
+                                        },
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -213,77 +267,229 @@ fun CommunityPostDetailScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
 
+                                // Show current support type if user has given support
+                                if (currentUserSupportType != null) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Card(
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                        )
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "Your support: ${getSupportEmoji(currentUserSupportType)} ${getSupportText(currentUserSupportType)}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                }
+
                                 Spacer(Modifier.height(16.dp))
 
-                                // Support Buttons
+                                // Support Buttons - Enhanced dengan indikator current support
+                                Text(
+                                    if (currentUserSupportType != null) {
+                                        "Change your support type or remove it:"
+                                    } else {
+                                        "Choose how you want to support:"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = 12.dp)
+                                )
+
+                                // First row of support buttons
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Button(
-                                        onClick = {
-                                            viewModel.onEvent(CommunityPostDetailEvent.GiveSupport(SupportType.HEART))
-                                        },
-                                        enabled = !uiState.isGivingSupport,
+                                    SupportButton(
+                                        supportType = SupportType.HEART,
+                                        isSelected = currentUserSupportType == SupportType.HEART,
+                                        isLoading = uiState.isGivingSupport,
+                                        onClick = { viewModel.giveSupport(SupportType.HEART) },
                                         modifier = Modifier.weight(1f)
-                                    ) {
-                                        if (uiState.isGivingSupport) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(16.dp),
-                                                strokeWidth = 2.dp
-                                            )
-                                        } else {
-                                            Icon(Icons.Default.Favorite, contentDescription = null)
-                                            Spacer(Modifier.width(4.dp))
-                                            Text("💝 Support")
-                                        }
-                                    }
+                                    )
 
-                                    OutlinedButton(
-                                        onClick = {
-                                            viewModel.onEvent(CommunityPostDetailEvent.GiveSupport(SupportType.HUG))
-                                        },
-                                        enabled = !uiState.isGivingSupport,
+                                    SupportButton(
+                                        supportType = SupportType.HUG,
+                                        isSelected = currentUserSupportType == SupportType.HUG,
+                                        isLoading = uiState.isGivingSupport,
+                                        onClick = { viewModel.giveSupport(SupportType.HUG) },
                                         modifier = Modifier.weight(1f)
+                                    )
+                                }
+
+                                Spacer(Modifier.height(8.dp))
+
+                                // Second row of support buttons
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    SupportButton(
+                                        supportType = SupportType.STRENGTH,
+                                        isSelected = currentUserSupportType == SupportType.STRENGTH,
+                                        isLoading = uiState.isGivingSupport,
+                                        onClick = { viewModel.giveSupport(SupportType.STRENGTH) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    SupportButton(
+                                        supportType = SupportType.HOPE,
+                                        isSelected = currentUserSupportType == SupportType.HOPE,
+                                        isLoading = uiState.isGivingSupport,
+                                        onClick = { viewModel.giveSupport(SupportType.HOPE) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+
+                                // Remove support button if user has given support
+                                if (currentUserSupportType != null) {
+                                    Spacer(Modifier.height(12.dp))
+                                    OutlinedButton(
+                                        onClick = { viewModel.removeSupport() },
+                                        enabled = !uiState.isGivingSupport,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.error
+                                        )
                                     ) {
-                                        Text("🤗 Hug")
+                                        Icon(Icons.Default.Remove, contentDescription = null)
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Remove Support")
                                     }
                                 }
                             }
                         }
 
                         Spacer(Modifier.height(24.dp))
+
+                        // Show error message if any
+                        if (uiState.error != null) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer
+                                )
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp)
+                                ) {
+                                    Text(
+                                        "Error",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        uiState.error!!,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                    Button(
+                                        onClick = { viewModel.clearError() },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.onErrorContainer,
+                                            contentColor = MaterialTheme.colorScheme.errorContainer
+                                        )
+                                    ) {
+                                        Text("Dismiss")
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+}
 
-            // Report Dialog
-            if (uiState.showReportDialog) {
-                AlertDialog(
-                    onDismissRequest = { viewModel.onEvent(CommunityPostDetailEvent.DismissReportDialog) },
-                    title = { Text("Report Post") },
-                    text = {
-                        Text("This will report the post to moderators for review. Are you sure you want to continue?")
-                    },
-                    confirmButton = {
-                        Button(
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                            onClick = {
-                                viewModel.onEvent(CommunityPostDetailEvent.ReportPost("Inappropriate content"))
-                            }
-                        ) {
-                            Text("Report")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = {
-                            viewModel.onEvent(CommunityPostDetailEvent.DismissReportDialog)
-                        }) {
-                            Text("Cancel")
-                        }
-                    }
+// ============================================================================
+// HELPER COMPOSABLES
+// ============================================================================
+
+@Composable
+private fun SupportButton(
+    supportType: SupportType,
+    isSelected: Boolean,
+    isLoading: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val buttonColors = if (isSelected) {
+        ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        )
+    } else {
+        ButtonDefaults.outlinedButtonColors(
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
+    }
+
+    if (isSelected) {
+        Button(
+            onClick = onClick,
+            enabled = !isLoading,
+            modifier = modifier,
+            colors = buttonColors
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary
                 )
+            } else {
+                Text("${getSupportEmoji(supportType)} ${getSupportText(supportType)}")
             }
         }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = !isLoading,
+            modifier = modifier,
+            colors = buttonColors
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text("${getSupportEmoji(supportType)} ${getSupportText(supportType)}")
+            }
+        }
+    }
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+private fun getSupportEmoji(supportType: SupportType): String {
+    return when (supportType) {
+        SupportType.HEART -> "💝"
+        SupportType.HUG -> "🤗"
+        SupportType.STRENGTH -> "💪"
+        SupportType.HOPE -> "🌟"
+    }
+}
+
+private fun getSupportText(supportType: SupportType): String {
+    return when (supportType) {
+        SupportType.HEART -> "Heart"
+        SupportType.HUG -> "Hug"
+        SupportType.STRENGTH -> "Strength"
+        SupportType.HOPE -> "Hope"
     }
 }

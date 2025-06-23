@@ -11,6 +11,7 @@ import com.dailychaos.project.data.repository.CommunityRepositoryImpl
 import com.dailychaos.project.domain.repository.AuthRepository
 import com.dailychaos.project.domain.repository.ChaosRepository
 import com.dailychaos.project.domain.repository.CommunityRepository
+import com.dailychaos.project.domain.repository.CommunityRepositoryExtended
 import com.dailychaos.project.preferences.UserPreferences
 import com.dailychaos.project.util.ValidationUtil
 import com.google.firebase.firestore.FirebaseFirestore
@@ -22,7 +23,7 @@ import javax.inject.Singleton
 
 /**
  * Repository Dependency Injection Module
- * "Connecting the data layers to domain layer"
+ * "Connecting the data layers to domain layer - Enhanced dengan support system"
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -53,6 +54,19 @@ object RepositoryModule {
     fun provideCommunityRepository(
         firestore: FirebaseFirestore
     ): CommunityRepository {
+        return CommunityRepositoryImpl(firestore)
+    }
+
+    /**
+     * Provide extended CommunityRepository implementation
+     * Menggunakan @Provides karena kita perlu cast dari instance yang sama
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    @Provides
+    @Singleton
+    fun provideCommunityRepositoryExtended(
+        firestore: FirebaseFirestore
+    ): CommunityRepositoryExtended {
         return CommunityRepositoryImpl(firestore)
     }
 }
