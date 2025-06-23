@@ -8,7 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.dailychaos.project.domain.model.CommunityPost
 import com.dailychaos.project.domain.model.SupportType
 import com.dailychaos.project.domain.repository.AuthRepository
-import com.dailychaos.project.domain.repository.CommunityRepository
+import com.dailychaos.project.domain.repository.CommunityRepositoryExtended
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,7 +21,7 @@ import javax.inject.Inject
 @RequiresApi(Build.VERSION_CODES.O)
 @HiltViewModel
 class CommunityFeedViewModel @Inject constructor(
-    private val communityRepository: CommunityRepository,
+    private val communityRepository: CommunityRepositoryExtended, // ✅ CHANGED: Use extended repository
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
@@ -38,6 +38,7 @@ class CommunityFeedViewModel @Inject constructor(
             is CommunityFeedEvent.Retry -> loadCommunityFeed(isInitialLoad = true)
             is CommunityFeedEvent.GiveSupport -> giveSupport(event.postId, event.type)
             is CommunityFeedEvent.ReportPost -> reportPost(event.postId)
+            CommunityFeedEvent.ClearError -> TODO()
         }
     }
 
@@ -94,58 +95,140 @@ class CommunityFeedViewModel @Inject constructor(
         }
     }
 
+    // ✅ ENHANCED: Support giving dengan same logic as CommunityPostDetailViewModel
     private fun giveSupport(postId: String, supportType: SupportType) {
         viewModelScope.launch {
             try {
-                Timber.d("💙 ==================== GIVING SUPPORT ====================")
+                Timber.d("💙 ==================== GIVING SUPPORT FROM FEED ====================")
                 Timber.d("💙 Giving support to post: $postId (type: $supportType)")
 
                 // Get current user
                 val currentUser = authRepository.getCurrentUser()
                 if (currentUser == null) {
                     Timber.e("❌ Cannot give support - user not authenticated")
+                    _uiState.update {
+                        it.copy(error = "Please login to give support")
+                    }
                     return@launch
                 }
 
-                // Optimistic UI update
-                _uiState.update { state ->
-                    val updatedPosts = state.posts.map { post ->
-                        if (post.id == postId) {
-                            post.copy(supportCount = post.supportCount + 1)
-                        } else {
-                            post
-                        }
-                    }
-                    state.copy(posts = updatedPosts)
+                // ✅ NEW: Check current user support type for this post
+                val currentSupportType = communityRepository.getUserSupportType(postId, currentUser.id)
+                Timber.d("💙 Current user support type: $currentSupportType")
+
+                // ✅ NEW: Check if trying to give same support type
+                if (currentSupportType == supportType) {
+                    Timber.d("🔄 User trying to give same support type - this will remove support")
+                    // For feed screen, we could show a confirmation or just toggle off
+                    // For now, let's just proceed with the toggle behavior
                 }
 
-                // Give support via repository
+                // Optimistic UI update
+                val currentPost = _uiState.value.posts.find { it.id == postId }
+                if (currentPost != null) {
+                    _uiState.update { state ->
+                        val updatedPosts = state.posts.map { post ->
+                            if (post.id == postId) {
+                                when {
+                                    currentSupportType == null -> {
+                                        // New support - increment count
+                                        post.copy(supportCount = post.supportCount + 1)
+                                    }
+                                    currentSupportType == supportType -> {
+                                        // Same support type - remove support (decrement)
+                                        post.copy(supportCount = (post.supportCount - 1).coerceAtLeast(0))
+                                    }
+                                    else -> {
+                                        // Different support type - count stays same
+                                        post
+                                    }
+                                }
+                            } else {
+                                post
+                            }
+                        }
+                        state.copy(posts = updatedPosts)
+                    }
+                }
+
+                // ✅ ENHANCED: Give support via repository dengan proper error handling
                 val result = communityRepository.giveSupport(postId, currentUser.id, supportType)
 
                 result.fold(
                     onSuccess = {
-                        Timber.d("✅ Support given successfully")
+                        Timber.d("✅ Support operation completed successfully from feed")
                         // UI already updated optimistically
+
+                        // Show appropriate message based on operation
+                        when {
+                            currentSupportType == null -> {
+                                Timber.d("✅ New support given")
+                                // Could show snackbar: "Support given!"
+                            }
+                            currentSupportType == supportType -> {
+                                Timber.d("✅ Support removed (toggle)")
+                                // Could show snackbar: "Support removed"
+                            }
+                            else -> {
+                                Timber.d("✅ Support type changed")
+                                // Could show snackbar: "Support changed!"
+                            }
+                        }
                     },
                     onFailure = { exception ->
-                        Timber.e(exception, "❌ Failed to give support")
+                        Timber.e(exception, "❌ Failed to give support from feed")
+
+                        // ✅ ENHANCED: Better error handling
+                        val errorMessage = when {
+                            exception.message?.contains("SAME_SUPPORT_TYPE") == true -> {
+                                "You already gave this support type"
+                            }
+                            exception.message?.contains("permission", ignoreCase = true) == true -> {
+                                "Permission denied. Please check your access rights."
+                            }
+                            exception.message?.contains("network", ignoreCase = true) == true -> {
+                                "Network error. Please check your connection."
+                            }
+                            else -> {
+                                "Failed to give support: ${exception.message}"
+                            }
+                        }
 
                         // Revert optimistic update
                         _uiState.update { state ->
                             val revertedPosts = state.posts.map { post ->
                                 if (post.id == postId) {
-                                    post.copy(supportCount = (post.supportCount - 1).coerceAtLeast(0))
+                                    when {
+                                        currentSupportType == null -> {
+                                            // Was new support - revert increment
+                                            post.copy(supportCount = (post.supportCount - 1).coerceAtLeast(0))
+                                        }
+                                        currentSupportType == supportType -> {
+                                            // Was remove support - revert decrement
+                                            post.copy(supportCount = post.supportCount + 1)
+                                        }
+                                        else -> {
+                                            // Was change support type - no count change to revert
+                                            post
+                                        }
+                                    }
                                 } else {
                                     post
                                 }
                             }
-                            state.copy(posts = revertedPosts)
+                            state.copy(
+                                posts = revertedPosts,
+                                error = errorMessage
+                            )
                         }
                     }
                 )
 
             } catch (e: Exception) {
-                Timber.e(e, "💥 Unexpected error giving support")
+                Timber.e(e, "💥 Unexpected error giving support from feed")
+                _uiState.update {
+                    it.copy(error = "Unexpected error: ${e.message}")
+                }
             }
         }
     }
@@ -160,6 +243,9 @@ class CommunityFeedViewModel @Inject constructor(
                 val currentUser = authRepository.getCurrentUser()
                 if (currentUser == null) {
                     Timber.e("❌ Cannot report post - user not authenticated")
+                    _uiState.update {
+                        it.copy(error = "Please login to report posts")
+                    }
                     return@launch
                 }
 
@@ -208,25 +294,5 @@ class CommunityFeedViewModel @Inject constructor(
     // Clear error state
     fun clearError() {
         _uiState.update { it.copy(error = null) }
-    }
-
-    // Get community stats
-    fun loadCommunityStats() {
-        viewModelScope.launch {
-            try {
-                val statsResult = communityRepository.getCommunityStats()
-                statsResult.fold(
-                    onSuccess = { stats ->
-                        Timber.d("📊 Community stats loaded: $stats")
-                        // Could add stats to UI state if needed
-                    },
-                    onFailure = { exception ->
-                        Timber.e(exception, "❌ Failed to load community stats")
-                    }
-                )
-            } catch (e: Exception) {
-                Timber.e(e, "💥 Error loading community stats")
-            }
-        }
     }
 }

@@ -2,8 +2,6 @@
 package com.dailychaos.project.presentation.ui.component
 
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -11,17 +9,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.dailychaos.project.R
 import com.dailychaos.project.domain.model.SupportType
 import kotlinx.coroutines.delay
 
@@ -29,27 +22,21 @@ import kotlinx.coroutines.delay
  * Megumin Sad Modal - Modal konfirmasi dengan Megumin yang sedih
  * "Modal yang nanyain kenapa user mau batalin support untuk orang yang butuh bantuan"
  */
-// File: app/src/main/java/com/dailychaos/project/presentation/ui/component/MeguminSadModal.kt
-// 🎯 PARTIAL UPDATE: Enhanced messaging for duplicate support confirmation
-
-/**
- * Megumin Sad Modal - Enhanced untuk duplicate support confirmation
- * "Modal konfirmasi dengan Megumin yang nanyain kenapa user mau batalin support"
- */
 @Composable
 fun MeguminSadModal(
     isVisible: Boolean,
     onDismiss: () -> Unit,
     onConfirmRemoval: () -> Unit,
-    modalType: MeguminModalType = MeguminModalType.RemoveSupport, // ✅ NEW: Support different modal types
-    currentSupportType: SupportType? = null, // ✅ NEW: Current support type for better messaging
+    modalType: MeguminModalType = MeguminModalType.RemoveSupport,
+    currentSupportType: SupportType? = null,
     modifier: Modifier = Modifier
 ) {
     if (!isVisible) return
 
-    // Animation states (keep existing animations)
+    // Animation states
     var isAnimating by remember { mutableStateOf(true) }
 
+    // Rotation animation for Megumin's hat
     val infiniteTransition = rememberInfiniteTransition(label = "megumin_hat_rotation")
     val hatRotation by infiniteTransition.animateFloat(
         initialValue = -5f,
@@ -61,6 +48,7 @@ fun MeguminSadModal(
         label = "hat_rotation"
     )
 
+    // Scale animation for entrance
     val scaleTransition = rememberInfiniteTransition(label = "megumin_scale")
     val scale by scaleTransition.animateFloat(
         initialValue = 0.95f,
@@ -104,18 +92,24 @@ fun MeguminSadModal(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Megumin avatar with animation
-                Image(
-                    painter = painterResource(id = R.drawable.megumin_sad), // You'll need this asset
-                    contentDescription = "Megumin sad",
+                // Megumin Image with animations - using emoji placeholder
+                Box(
                     modifier = Modifier
-                        .size(80.dp)
-                        .rotate(hatRotation)
-                        .graphicsLayer(scaleX = scale, scaleY = scale),
-                    colorFilter = if (isSystemInDarkTheme()) {
-                        ColorFilter.tint(MaterialTheme.colorScheme.primary)
-                    } else null
-                )
+                        .size(120.dp)
+                        .rotate(hatRotation),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Emoji placeholder untuk gambar Megumin
+                    Text(
+                        text = when (modalType) {
+                            MeguminModalType.DuplicateSupport -> "🤔"
+                            MeguminModalType.RemoveSupport -> "😢"
+                            MeguminModalType.SelfSupport -> "😱"
+                        },
+                        fontSize = 80.sp,
+                        modifier = Modifier.rotate(-hatRotation) // Counter-rotate the emoji
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -134,7 +128,7 @@ fun MeguminSadModal(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // ✅ ENHANCED: Context-aware messaging
+                // Context-aware messaging
                 Text(
                     text = getMeguminMessage(modalType, currentSupportType),
                     style = MaterialTheme.typography.bodyLarge,
@@ -157,7 +151,7 @@ fun MeguminSadModal(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // ✅ ENHANCED: Action buttons based on modal type
+                // Action buttons based on modal type
                 when (modalType) {
                     MeguminModalType.DuplicateSupport -> {
                         // Duplicate support - show cancel/confirm options
@@ -222,13 +216,52 @@ fun MeguminSadModal(
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Fun fact about support
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "💡 Fun Fact:",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = when (modalType) {
+                                MeguminModalType.RemoveSupport -> {
+                                    "Setiap support yang diberikan membantu seseorang merasa tidak sendirian dalam chaos mereka. Seperti party Kazuma - chaos tapi saling support!"
+                                }
+                                MeguminModalType.DuplicateSupport -> {
+                                    "Kamu bisa ganti tipe support kapan saja! Dari 💝 ke 🤗, dari 💪 ke 🌟 - yang penting tetap mendukung fellow adventurer!"
+                                }
+                                MeguminModalType.SelfSupport -> {
+                                    "Self-support itu bagus untuk confidence, tapi di sini kita support orang lain! That's the adventurer way!"
+                                }
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 /**
- * ✅ NEW: Modal types untuk different scenarios
+ * Modal types untuk different scenarios
  */
 enum class MeguminModalType {
     DuplicateSupport,  // User trying to give same support type
@@ -237,16 +270,15 @@ enum class MeguminModalType {
 }
 
 /**
- * ✅ NEW: Get context-aware Megumin message
+ * Get context-aware Megumin message
  */
-@Composable
 private fun getMeguminMessage(
     modalType: MeguminModalType,
     currentSupportType: SupportType?
 ): String {
     return when (modalType) {
         MeguminModalType.DuplicateSupport -> {
-            val emoji = currentSupportType?.emoji ?: "❤️"
+            val emoji = getSupportEmoji(currentSupportType)
             "\"Kamu udah kasih support $emoji ini sebelumnya! Mau batalin support-nya?\""
         }
 
@@ -257,5 +289,34 @@ private fun getMeguminMessage(
         MeguminModalType.SelfSupport -> {
             "\"Heh?! Kamu mau support post sendiri? That's not how adventuring works, bodoh!\""
         }
+    }
+}
+
+/**
+ * Helper function to get support emoji
+ */
+private fun getSupportEmoji(supportType: SupportType?): String {
+    return when (supportType) {
+        SupportType.HEART -> "💝"
+        SupportType.HUG -> "🤗"
+        SupportType.STRENGTH -> "💪"
+        SupportType.HOPE -> "🌟"
+        null -> "❤️"
+    }
+}
+
+/**
+ * Preview untuk development
+ */
+@Composable
+fun MeguminSadModalPreview() {
+    MaterialTheme {
+        MeguminSadModal(
+            isVisible = true,
+            onDismiss = {},
+            onConfirmRemoval = {},
+            modalType = MeguminModalType.RemoveSupport,
+            currentSupportType = SupportType.HEART
+        )
     }
 }
