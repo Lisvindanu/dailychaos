@@ -216,31 +216,39 @@ class CommunityRepositoryImpl @Inject constructor(
     // SUPPORT AND INTERACTION OPERATIONS
     // ============================================================================
 
+    // Updated CommunityRepositoryImpl.kt - dengan user profile update
     override suspend fun giveSupport(postId: String, userId: String, supportType: SupportType): Result<Unit> {
         return try {
             Timber.d("💙 Giving support to post: $postId (type: $supportType)")
 
-            // Create support reaction document
+            val batch = firestore.batch()
+
+            // 1. Add support reaction
             val supportReaction = mapOf(
                 "postId" to postId,
                 "userId" to userId,
                 "supportType" to supportType.name,
                 "createdAt" to com.google.firebase.Timestamp.now()
             )
-
-            val batch = firestore.batch()
-
-            // Add support reaction
             val supportRef = firestore.collection(COLLECTION_SUPPORT_REACTIONS).document()
             batch.set(supportRef, supportReaction)
 
-            // Increment support count on post
+            // 2. Increment support count on post
             val postRef = firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS).document(postId)
             batch.update(postRef, "supportCount", com.google.firebase.firestore.FieldValue.increment(1))
 
+            // 🚀 3. UPDATE USER PROFILE - This was missing!
+            val userRef = firestore.collection("users").document(userId)
+            batch.update(userRef, mapOf(
+                "supportGiven" to com.google.firebase.firestore.FieldValue.increment(1),
+                "totalSupportsGiven" to com.google.firebase.firestore.FieldValue.increment(1),
+                "totalSupportGiven" to com.google.firebase.firestore.FieldValue.increment(1),
+                "lastActiveAt" to com.google.firebase.Timestamp.now()
+            ))
+
             batch.commit().await()
 
-            Timber.d("✅ Support given successfully to post: $postId")
+            Timber.d("✅ Support given and user profile updated successfully")
             Result.success(Unit)
 
         } catch (e: Exception) {
@@ -257,29 +265,38 @@ class CommunityRepositoryImpl @Inject constructor(
             val supportQuery = firestore.collection(COLLECTION_SUPPORT_REACTIONS)
                 .whereEqualTo("postId", postId)
                 .whereEqualTo("userId", userId)
+                .limit(1)
                 .get()
                 .await()
 
-            if (!supportQuery.isEmpty) {
+            if (supportQuery.documents.isNotEmpty()) {
                 val batch = firestore.batch()
 
                 // Delete support reaction
-                supportQuery.documents.forEach { doc ->
-                    batch.delete(doc.reference)
-                }
+                val supportDoc = supportQuery.documents[0]
+                batch.delete(supportDoc.reference)
 
                 // Decrement support count on post
                 val postRef = firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS).document(postId)
                 batch.update(postRef, "supportCount", com.google.firebase.firestore.FieldValue.increment(-1))
 
+                // 🚀 UPDATE USER PROFILE - Decrement support count
+                val userRef = firestore.collection("users").document(userId)
+                batch.update(userRef, mapOf(
+                    "supportGiven" to com.google.firebase.firestore.FieldValue.increment(-1),
+                    "totalSupportsGiven" to com.google.firebase.firestore.FieldValue.increment(-1),
+                    "totalSupportGiven" to com.google.firebase.firestore.FieldValue.increment(-1),
+                    "lastActiveAt" to com.google.firebase.Timestamp.now()
+                ))
+
                 batch.commit().await()
 
-                Timber.d("✅ Support removed successfully from post: $postId")
+                Timber.d("✅ Support removed and user profile updated successfully")
+                Result.success(Unit)
             } else {
-                Timber.w("No support reaction found for user $userId on post $postId")
+                Timber.w("⚠️ No support reaction found to remove for post: $postId, user: $userId")
+                Result.failure(Exception("No support reaction found to remove"))
             }
-
-            Result.success(Unit)
 
         } catch (e: Exception) {
             Timber.e(e, "❌ Error removing support from post: $postId")
