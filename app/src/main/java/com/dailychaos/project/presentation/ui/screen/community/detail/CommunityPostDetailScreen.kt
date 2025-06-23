@@ -76,6 +76,8 @@ fun CommunityPostDetailScreen(
                 is CommunityPostDetailScreenEvent.ShowMessage -> {
                     snackbarHostState.showSnackbar(event.message)
                 }
+
+                CommunityPostDetailScreenEvent.NavigateBack -> TODO()
             }
         }
     }
