@@ -9,6 +9,7 @@ import androidx.compose.ui.*
 import androidx.compose.ui.unit.*
 import com.dailychaos.project.domain.model.SyncStatus
 import com.dailychaos.project.presentation.theme.*
+import com.dailychaos.project.presentation.theme.SemanticColors.InfoLight
 
 /**
  * Sync Status Indicator Component
@@ -44,7 +45,7 @@ fun SyncStatusIndicator(
         )
         SyncStatus.LOCAL_ONLY -> Triple(
             Icons.Default.CloudOff,
-            ChaosGray,
+            InfoLight,
             "Local"
         )
     }
