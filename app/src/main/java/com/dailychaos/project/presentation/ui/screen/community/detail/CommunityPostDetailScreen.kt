@@ -24,6 +24,7 @@ import com.dailychaos.project.presentation.ui.component.ChaosLevelBadge
 import com.dailychaos.project.presentation.ui.component.ErrorMessage
 import com.dailychaos.project.presentation.ui.component.LoadingIndicator
 import com.dailychaos.project.presentation.ui.component.MeguminSadModal
+import com.dailychaos.project.util.SupportUtils
 import com.dailychaos.project.util.toFriendlyDateString
 import com.dailychaos.project.util.toTimeString
 import kotlinx.coroutines.flow.collectLatest
@@ -41,16 +42,16 @@ fun CommunityPostDetailScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // State untuk Megumin modal
+    // ✅ SIMPLE: Modal state management
     var showMeguminModal by remember { mutableStateOf(false) }
-    var isRemovingSupportMode by remember { mutableStateOf(false) }
+    var isRemovingSupportMode by remember { mutableStateOf(true) }
 
     // Load post when screen starts
     LaunchedEffect(postId) {
         viewModel.loadPost(postId)
     }
 
-    // Handle events
+    // ✅ FIXED: Handle events properly
     LaunchedEffect(Unit) {
         viewModel.events.collectLatest { event ->
             when (event) {
@@ -69,20 +70,22 @@ fun CommunityPostDetailScreen(
                 is CommunityPostDetailScreenEvent.NavigateToLogin -> {
                     onNavigateToLogin()
                 }
-                is CommunityPostDetailScreenEvent.ShowMeguminSadModal -> {
+                CommunityPostDetailScreenEvent.NavigateBack -> {
+                    onNavigateBack()
+                }
+                CommunityPostDetailScreenEvent.ShowMeguminSadModal -> {
+                    // ✅ SIMPLE: Always set as removing support mode
+                    isRemovingSupportMode = true
                     showMeguminModal = true
-                    isRemovingSupportMode = uiState.currentUserSupportType != null
                 }
                 is CommunityPostDetailScreenEvent.ShowMessage -> {
                     snackbarHostState.showSnackbar(event.message)
                 }
-
-                CommunityPostDetailScreenEvent.NavigateBack -> TODO()
             }
         }
     }
 
-    // Megumin Sad Modal
+    // ✅ SIMPLE: Megumin Sad Modal with basic boolean
     MeguminSadModal(
         isVisible = showMeguminModal,
         onDismiss = {
@@ -222,7 +225,7 @@ fun CommunityPostDetailScreen(
 
                         Spacer(Modifier.height(32.dp))
 
-                        // Enhanced Support Section
+                        // ✅ ENHANCED: Support Section with better UX
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
@@ -293,10 +296,10 @@ fun CommunityPostDetailScreen(
 
                                 Spacer(Modifier.height(16.dp))
 
-                                // Support Buttons - Enhanced dengan indikator current support
+                                // ✅ ENHANCED: Support instruction text
                                 Text(
                                     if (currentUserSupportType != null) {
-                                        "Change your support type or remove it:"
+                                        "Tap the same support to remove it, or choose a different one:"
                                     } else {
                                         "Choose how you want to support:"
                                     },
@@ -351,11 +354,15 @@ fun CommunityPostDetailScreen(
                                     )
                                 }
 
-                                // Remove support button if user has given support
+                                // ✅ FIXED: Remove support button calls existing ViewModel method
                                 if (currentUserSupportType != null) {
                                     Spacer(Modifier.height(12.dp))
                                     OutlinedButton(
-                                        onClick = { viewModel.removeSupport() },
+                                        onClick = {
+                                            // Trigger manual remove dengan modal
+                                            isRemovingSupportMode = true
+                                            showMeguminModal = true
+                                        },
                                         enabled = !uiState.isGivingSupport,
                                         modifier = Modifier.fillMaxWidth(),
                                         colors = ButtonDefaults.outlinedButtonColors(
