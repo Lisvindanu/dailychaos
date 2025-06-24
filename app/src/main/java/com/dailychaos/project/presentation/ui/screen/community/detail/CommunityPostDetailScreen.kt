@@ -24,6 +24,8 @@ import com.dailychaos.project.presentation.ui.component.ChaosLevelBadge
 import com.dailychaos.project.presentation.ui.component.ErrorMessage
 import com.dailychaos.project.presentation.ui.component.LoadingIndicator
 import com.dailychaos.project.presentation.ui.component.MeguminSadModal
+import com.dailychaos.project.presentation.ui.component.MeguminModalType
+import com.dailychaos.project.util.SupportUtils
 import com.dailychaos.project.util.toFriendlyDateString
 import com.dailychaos.project.util.toTimeString
 import kotlinx.coroutines.flow.collectLatest
@@ -36,21 +38,21 @@ fun CommunityPostDetailScreen(
     viewModel: CommunityPostDetailViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit,
     onNavigateToLogin: () -> Unit = {},
-    onNavigateToSupport: () -> Unit = {}
+    onNavigateToSupport: (String) -> Unit = {} // ✅ ENHANCED: Navigation to support/comment screen
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // State untuk Megumin modal
+    // ✅ FIXED: Updated modal state management
     var showMeguminModal by remember { mutableStateOf(false) }
-    var isRemovingSupportMode by remember { mutableStateOf(false) }
+    var meguminModalType by remember { mutableStateOf(MeguminModalType.RemoveSupport) }
 
     // Load post when screen starts
     LaunchedEffect(postId) {
         viewModel.loadPost(postId)
     }
 
-    // Handle events
+    // ✅ FIXED: Handle events properly
     LaunchedEffect(Unit) {
         viewModel.events.collectLatest { event ->
             when (event) {
@@ -69,9 +71,13 @@ fun CommunityPostDetailScreen(
                 is CommunityPostDetailScreenEvent.NavigateToLogin -> {
                     onNavigateToLogin()
                 }
-                is CommunityPostDetailScreenEvent.ShowMeguminSadModal -> {
+                CommunityPostDetailScreenEvent.NavigateBack -> {
+                    onNavigateBack()
+                }
+                CommunityPostDetailScreenEvent.ShowMeguminSadModal -> {
+                    // ✅ FIXED: Set modal type for remove support
+                    meguminModalType = MeguminModalType.RemoveSupport
                     showMeguminModal = true
-                    isRemovingSupportMode = uiState.currentUserSupportType != null
                 }
                 is CommunityPostDetailScreenEvent.ShowMessage -> {
                     snackbarHostState.showSnackbar(event.message)
@@ -80,19 +86,18 @@ fun CommunityPostDetailScreen(
         }
     }
 
-    // Megumin Sad Modal
+    // ✅ FIXED: Updated MeguminSadModal with correct parameters
     MeguminSadModal(
         isVisible = showMeguminModal,
         onDismiss = {
             showMeguminModal = false
-            isRemovingSupportMode = false
         },
         onConfirmRemoval = {
             showMeguminModal = false
-            isRemovingSupportMode = false
             viewModel.confirmRemoveSupport()
         },
-        isRemovingSupport = isRemovingSupportMode
+        modalType = meguminModalType,
+        currentSupportType = uiState.currentUserSupportType
     )
 
     Scaffold(
@@ -184,6 +189,65 @@ fun CommunityPostDetailScreen(
                         // Mini Wins
                         if (post.miniWins.isNotEmpty()) {
                             Spacer(Modifier.height(24.dp))
+
+                            // ✅ ENHANCED: Comments Preview Card
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                )
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Comment,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            "Community Support",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Spacer(Modifier.weight(1f))
+                                        Icon(
+                                            Icons.Default.ArrowForward,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+
+                                    Spacer(Modifier.height(8.dp))
+
+                                    Text(
+                                        "See what fellow adventurers are saying and share your own words of support",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+
+                                    Spacer(Modifier.height(12.dp))
+
+                                    Button(
+                                        onClick = { onNavigateToSupport(postId) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary
+                                        )
+                                    ) {
+                                        Icon(Icons.Default.Comment, contentDescription = null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("View All Comments & Support")
+                                    }
+                                }
+                            }
+
+                            Spacer(Modifier.height(24.dp))
                             Text(
                                 "🏆 Mini Wins",
                                 style = MaterialTheme.typography.titleMedium,
@@ -220,7 +284,7 @@ fun CommunityPostDetailScreen(
 
                         Spacer(Modifier.height(32.dp))
 
-                        // Enhanced Support Section
+                        // ✅ ENHANCED: Support Section with better UX
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
@@ -291,10 +355,10 @@ fun CommunityPostDetailScreen(
 
                                 Spacer(Modifier.height(16.dp))
 
-                                // Support Buttons - Enhanced dengan indikator current support
+                                // ✅ ENHANCED: Support instruction text
                                 Text(
                                     if (currentUserSupportType != null) {
-                                        "Change your support type or remove it:"
+                                        "Tap the same support to remove it, or choose a different one:"
                                     } else {
                                         "Choose how you want to support:"
                                     },
@@ -349,11 +413,15 @@ fun CommunityPostDetailScreen(
                                     )
                                 }
 
-                                // Remove support button if user has given support
+                                // ✅ FIXED: Remove support button with updated modal trigger
                                 if (currentUserSupportType != null) {
                                     Spacer(Modifier.height(12.dp))
                                     OutlinedButton(
-                                        onClick = { viewModel.removeSupport() },
+                                        onClick = {
+                                            // ✅ FIXED: Use updated modal type
+                                            meguminModalType = MeguminModalType.RemoveSupport
+                                            showMeguminModal = true
+                                        },
                                         enabled = !uiState.isGivingSupport,
                                         modifier = Modifier.fillMaxWidth(),
                                         colors = ButtonDefaults.outlinedButtonColors(

@@ -98,17 +98,13 @@ class CommunityPostDetailViewModel @Inject constructor(
         }
     }
 
-    fun giveSupport(supportType: SupportType = SupportType.HEART) {
+    fun giveSupport(supportType: SupportType) {
         viewModelScope.launch {
             try {
-                Timber.d("💝 ==================== GIVING SUPPORT ====================")
-                Timber.d("💝 Giving support to post: $postId, type: $supportType")
+                Timber.d("💙 ==================== GIVING SUPPORT ====================")
+                Timber.d("💙 Giving support to post: $postId (type: $supportType)")
 
-                // Validasi state
-                if (_uiState.value.isGivingSupport) {
-                    Timber.w("⚠️ Already giving support, ignoring request")
-                    return@launch
-                }
+                _uiState.update { it.copy(isGivingSupport = true, error = null) }
 
                 if (postId.isBlank()) {
                     Timber.e("❌ Invalid post ID")
@@ -130,101 +126,19 @@ class CommunityPostDetailViewModel @Inject constructor(
                 // Check if user already gave support
                 val currentSupportType = _uiState.value.currentUserSupportType
 
-                if (currentSupportType != null) {
-                    if (currentSupportType == supportType) {
-                        // Same support type - show Megumin sad modal
-                        Timber.d("😢 User trying to give same support type - showing Megumin modal")
-                        _events.emit(CommunityPostDetailScreenEvent.ShowMeguminSadModal)
-                        return@launch
-                    } else {
-                        // Different support type - change it
-                        Timber.d("🔄 User changing support type from $currentSupportType to $supportType")
-                        _events.emit(CommunityPostDetailScreenEvent.ShowMessage("Support type changed to ${getSupportEmoji(supportType)}"))
-                    }
+                if (currentSupportType != null && currentSupportType == supportType) {
+                    // ✅ FIXED: Same support type - show Megumin confirmation modal
+                    Timber.d("😢 User trying to give same support type - showing Megumin confirmation")
+                    _uiState.update { it.copy(isGivingSupport = false) } // Reset loading state
+                    _events.emit(CommunityPostDetailScreenEvent.ShowMeguminSadModal)
+                    return@launch
                 }
 
-                _uiState.update { it.copy(isGivingSupport = true, error = null) }
-
-                // Optimistically update support count dan user support type
-                val currentPost = _uiState.value.post
-                if (currentPost != null) {
-                    val newSupportCount = if (currentSupportType == null) {
-                        // New support - increment count
-                        currentPost.supportCount + 1
-                    } else {
-                        // Change support type - count stays same
-                        currentPost.supportCount
-                    }
-
-                    _uiState.update {
-                        it.copy(
-                            post = currentPost.copy(supportCount = newSupportCount),
-                            currentUserSupportType = supportType
-                        )
-                    }
-                }
-
-                // Give support via repository
-                val result = communityRepository.giveSupport(postId, currentUser.id, supportType)
-
-                result.fold(
-                    onSuccess = {
-                        Timber.d("✅ Support given successfully")
-                        _uiState.update {
-                            it.copy(
-                                isGivingSupport = false,
-                                error = null
-                            )
-                        }
-
-                        if (currentSupportType == null) {
-                            _events.emit(CommunityPostDetailScreenEvent.SupportGiven)
-                            _events.emit(CommunityPostDetailScreenEvent.ShowMessage("Support given! ${getSupportEmoji(supportType)} 💙"))
-                        } else {
-                            _events.emit(CommunityPostDetailScreenEvent.SupportTypeChanged)
-                        }
-                    },
-                    onFailure = { exception ->
-                        Timber.e(exception, "❌ Failed to give support")
-
-                        // Revert optimistic update
-                        if (currentPost != null) {
-                            _uiState.update {
-                                it.copy(
-                                    post = currentPost,
-                                    currentUserSupportType = currentSupportType
-                                )
-                            }
-                        }
-
-                        val errorMessage = getErrorMessage(exception)
-                        _uiState.update {
-                            it.copy(
-                                isGivingSupport = false,
-                                error = errorMessage
-                            )
-                        }
-
-                        // Handle specific error types
-                        when {
-                            exception.message?.contains("SAME_SUPPORT_TYPE") == true -> {
-                                _events.emit(CommunityPostDetailScreenEvent.ShowMeguminSadModal)
-                            }
-                            exception.message?.contains("Permission denied") == true -> {
-                                _events.emit(CommunityPostDetailScreenEvent.ShowMessage("Access denied. Please check your permissions."))
-                            }
-                            exception.message?.contains("Post not found") == true -> {
-                                _events.emit(CommunityPostDetailScreenEvent.ShowMessage("This post no longer exists."))
-                            }
-                            else -> {
-                                _events.emit(CommunityPostDetailScreenEvent.ShowMessage("Failed to give support. Please try again."))
-                            }
-                        }
-                    }
-                )
+                // Different support type or new support - proceed directly
+                executeGiveSupport(currentUser.id, supportType, currentSupportType)
 
             } catch (e: Exception) {
-                Timber.e(e, "💥 Unexpected error giving support")
+                Timber.e(e, "💥 Unexpected error in giveSupport")
                 _uiState.update {
                     it.copy(
                         isGivingSupport = false,
@@ -235,6 +149,115 @@ class CommunityPostDetailViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * 🚨 NEW METHOD: Execute give support logic (separated for reuse)
+     */
+    private suspend fun executeGiveSupport(
+        userId: String,
+        supportType: SupportType,
+        currentSupportType: SupportType?
+    ) {
+        try {
+            // Optimistically update UI
+            val currentPost = _uiState.value.post
+            if (currentPost != null) {
+                val newSupportCount = if (currentSupportType == null) {
+                    // New support - increment count
+                    currentPost.supportCount + 1
+                } else {
+                    // Change support type - count stays same
+                    currentPost.supportCount
+                }
+
+                _uiState.update {
+                    it.copy(
+                        post = currentPost.copy(supportCount = newSupportCount),
+                        currentUserSupportType = supportType
+                    )
+                }
+            }
+
+            // Call repository
+            val result = communityRepository.giveSupport(postId, userId, supportType)
+
+            result.fold(
+                onSuccess = {
+                    Timber.d("✅ Support operation completed successfully")
+                    _uiState.update {
+                        it.copy(
+                            isGivingSupport = false,
+                            error = null
+                        )
+                    }
+
+                    when {
+                        currentSupportType == null -> {
+                            // New support given
+                            _events.emit(CommunityPostDetailScreenEvent.SupportGiven)
+                            _events.emit(CommunityPostDetailScreenEvent.ShowMessage("Support given! ${getSupportEmoji(supportType)}"))
+                        }
+                        currentSupportType == supportType -> {
+                            // Support removed (same type toggle)
+                            _events.emit(CommunityPostDetailScreenEvent.SupportRemoved)
+                            _events.emit(CommunityPostDetailScreenEvent.ShowMessage("Support removed"))
+                            // Update UI to reflect removal
+                            _uiState.update {
+                                it.copy(currentUserSupportType = null)
+                            }
+                        }
+                        else -> {
+                            // Support type changed
+                            _events.emit(CommunityPostDetailScreenEvent.ShowMessage("Support changed to ${getSupportEmoji(supportType)}"))
+                        }
+                    }
+                },
+                onFailure = { exception ->
+                    Timber.e(exception, "❌ Failed to give support")
+
+                    // Revert optimistic updates
+                    if (currentPost != null) {
+                        _uiState.update {
+                            it.copy(
+                                post = currentPost,
+                                currentUserSupportType = currentSupportType
+                            )
+                        }
+                    }
+
+                    val errorMessage = when {
+                        exception.message?.contains("PERMISSION_DENIED") == true ->
+                            "Permission denied. Please check your access rights."
+                        exception.message?.contains("Post not found") == true ->
+                            "Post not found."
+                        exception.message?.contains("not authenticated") == true ->
+                            "You must be logged in to give support."
+                        else -> "Failed to give support. Please try again."
+                    }
+
+                    _uiState.update {
+                        it.copy(
+                            isGivingSupport = false,
+                            error = errorMessage
+                        )
+                    }
+                    _events.emit(CommunityPostDetailScreenEvent.ShowMessage(errorMessage))
+                }
+            )
+
+        } catch (e: Exception) {
+            Timber.e(e, "💥 Unexpected error in executeGiveSupport")
+            _uiState.update {
+                it.copy(
+                    isGivingSupport = false,
+                    error = "Unexpected error: ${e.message}"
+                )
+            }
+            _events.emit(CommunityPostDetailScreenEvent.ShowMessage("Something went wrong. Please try again."))
+        }
+    }
+
+
 
     fun removeSupport() {
         viewModelScope.launch {
@@ -265,7 +288,7 @@ class CommunityPostDetailViewModel @Inject constructor(
                     return@launch
                 }
 
-                // Show Megumin sad modal first for confirmation
+                // Show Megumin sad modal for confirmation
                 _events.emit(CommunityPostDetailScreenEvent.ShowMeguminSadModal)
 
             } catch (e: Exception) {
@@ -281,70 +304,23 @@ class CommunityPostDetailViewModel @Inject constructor(
                 Timber.d("💔 ==================== CONFIRMING SUPPORT REMOVAL ====================")
 
                 val currentUser = authRepository.getCurrentUser() ?: return@launch
+                val currentSupportType = _uiState.value.currentUserSupportType ?: return@launch
 
                 _uiState.update { it.copy(isGivingSupport = true, error = null) }
 
-                // Optimistically update support count
-                val currentPost = _uiState.value.post
-                if (currentPost != null) {
-                    _uiState.update {
-                        it.copy(
-                            post = currentPost.copy(
-                                supportCount = (currentPost.supportCount - 1).coerceAtLeast(0)
-                            ),
-                            currentUserSupportType = null
-                        )
-                    }
-                }
-
-                // Remove support via repository
-                val result = communityRepository.removeSupport(postId, currentUser.id)
-
-                result.fold(
-                    onSuccess = {
-                        Timber.d("✅ Support removed successfully")
-                        _uiState.update {
-                            it.copy(
-                                isGivingSupport = false,
-                                error = null
-                            )
-                        }
-                        _events.emit(CommunityPostDetailScreenEvent.SupportRemoved)
-                        _events.emit(CommunityPostDetailScreenEvent.ShowMessage("Support removed"))
-                    },
-                    onFailure = { exception ->
-                        Timber.e(exception, "❌ Failed to remove support")
-
-                        // Revert optimistic update
-                        if (currentPost != null) {
-                            _uiState.update {
-                                it.copy(
-                                    post = currentPost.copy(supportCount = currentPost.supportCount + 1),
-                                    currentUserSupportType = _uiState.value.currentUserSupportType
-                                )
-                            }
-                        }
-
-                        val errorMessage = getErrorMessage(exception)
-                        _uiState.update {
-                            it.copy(
-                                isGivingSupport = false,
-                                error = errorMessage
-                            )
-                        }
-
-                        _events.emit(CommunityPostDetailScreenEvent.ShowMessage("Failed to remove support. Please try again."))
-                    }
-                )
+                // Execute the same support type removal via giveSupport
+                // (Repository will handle the toggle behavior)
+                executeGiveSupport(currentUser.id, currentSupportType, currentSupportType)
 
             } catch (e: Exception) {
-                Timber.e(e, "💥 Unexpected error confirming support removal")
+                Timber.e(e, "💥 Unexpected error in confirmRemoveSupport")
                 _uiState.update {
                     it.copy(
                         isGivingSupport = false,
                         error = "Unexpected error: ${e.message}"
                     )
                 }
+                _events.emit(CommunityPostDetailScreenEvent.ShowMessage("Something went wrong. Please try again."))
             }
         }
     }
@@ -486,11 +462,12 @@ data class CommunityPostDetailUiState(
 // ============================================================================
 
 sealed class CommunityPostDetailScreenEvent {
-    data object SupportGiven : CommunityPostDetailScreenEvent()
+    data object NavigateBack : CommunityPostDetailScreenEvent()
+    object SupportGiven : CommunityPostDetailScreenEvent()
+    object SupportRemoved : CommunityPostDetailScreenEvent()
+    object ShowMeguminSadModal : CommunityPostDetailScreenEvent() // ✅ For duplicate support confirmation
     data object SupportTypeChanged : CommunityPostDetailScreenEvent() // NEW: For support type changes
-    data object SupportRemoved : CommunityPostDetailScreenEvent()
     data object PostReported : CommunityPostDetailScreenEvent()
     data object NavigateToLogin : CommunityPostDetailScreenEvent()
-    data object ShowMeguminSadModal : CommunityPostDetailScreenEvent() // NEW: Show Megumin sad modal
     data class ShowMessage(val message: String) : CommunityPostDetailScreenEvent()
 }

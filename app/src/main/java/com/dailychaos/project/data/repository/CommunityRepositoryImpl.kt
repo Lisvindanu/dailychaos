@@ -88,15 +88,19 @@ class CommunityRepositoryImpl @Inject constructor(
                 Timber.d("🔄 User already gave support. Existing type: $existingSupportType, New type: ${supportType.name}")
 
                 if (existingSupportType == supportType.name) {
-                    // Same support type - return special result indicating this is a duplicate
-                    Timber.w("⚠️ User already gave the same support type")
-                    return Result.failure(Exception("SAME_SUPPORT_TYPE"))
+                    // ✅ CRITICAL FIX: Same support type = TOGGLE SUPPORT (remove it)
+                    // Let ViewModel handle the confirmation dialog, but Repository removes the support
+                    Timber.d("🔄 Same support type detected - removing existing support (toggle behavior)")
+                    return removeSupport(postId, userId)
                 } else {
                     // Different support type - update the existing support
                     Timber.d("🔄 Changing support type from $existingSupportType to ${supportType.name}")
                     return changeSupportType(postId, userId, supportType, existingSupportDoc.id)
                 }
             }
+
+            // User belum kasih support - create new support
+            Timber.d("💙 Creating new support reaction")
 
             // Gunakan transaction untuk atomicity yang lebih baik
             firestore.runTransaction { transaction ->
@@ -162,6 +166,35 @@ class CommunityRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Timber.e(e, "❌ Unexpected error giving support to post: $postId")
             Result.failure(Exception("Unexpected error occurred. Please try again.", e))
+        }
+    }
+
+// ============================================================================
+// 📝 ADDITIONAL HELPER METHOD untuk ViewModel
+// ============================================================================
+
+    /**
+     * 🚨 NEW METHOD: Check if giving same support type (for ViewModel confirmation logic)
+     * Returns true if user is trying to give the same support type they already gave
+     */
+    override suspend fun isSameSupportType(postId: String, userId: String, supportType: SupportType): Boolean {
+        return try {
+            val existingSupportQuery = firestore.collection(COLLECTION_SUPPORT_REACTIONS)
+                .whereEqualTo("postId", postId)
+                .whereEqualTo("userId", userId)
+                .limit(1)
+                .get()
+                .await()
+
+            if (!existingSupportQuery.isEmpty) {
+                val existingSupportType = existingSupportQuery.documents[0].getString("supportType")
+                return existingSupportType == supportType.name
+            }
+
+            false
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error checking same support type")
+            false
         }
     }
 

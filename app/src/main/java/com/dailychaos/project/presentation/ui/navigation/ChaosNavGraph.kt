@@ -54,6 +54,7 @@ import com.dailychaos.project.presentation.ui.screen.home.HomeScreen
 import com.dailychaos.project.presentation.ui.screen.settings.SettingsScreen
 import com.dailychaos.project.presentation.ui.screen.splash.SplashScreen
 import com.dailychaos.project.presentation.ui.screen.community.detail.CommunityPostDetailScreen
+import com.dailychaos.project.presentation.ui.screen.community.support.SupportScreen
 import timber.log.Timber
 
 /**
@@ -432,7 +433,7 @@ private fun ChaosNavHost(
             )
         }
 
-        // COMMUNITY POST DETAIL (for community posts) - NEW!
+        // COMMUNITY POST DETAIL (for community posts)
         composable(
             route = ChaosDestinations.COMMUNITY_POST_WITH_ID,
             arguments = listOf(
@@ -445,10 +446,27 @@ private fun ChaosNavHost(
             CommunityPostDetailScreen(
                 postId = postId,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToSupport = {
-                    // Add support navigation if needed
-                    Timber.d("📤 Support post: $postId")
+                onNavigateToSupport = { supportPostId ->
+                    // ✅ FIXED: Navigate to support screen
+                    Timber.d("💬 Navigating to Support Screen - Post ID: $supportPostId")
+                    navController.navigate(ChaosDestinations.supportRoute(supportPostId))
                 }
+            )
+        }
+
+        // ✅ NEW: SUPPORT/COMMENT SCREEN - ADD THIS ROUTE
+        composable(
+            route = ChaosDestinations.SUPPORT_WITH_POST_ID,
+            arguments = listOf(
+                navArgument(ChaosDestinations.Args.POST_ID) { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val postId = backStackEntry.arguments?.getString(ChaosDestinations.Args.POST_ID) ?: ""
+            Timber.d("💬 Support Screen - Post ID: $postId")
+
+            SupportScreen(
+                postId = postId,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
@@ -476,63 +494,6 @@ private fun ChaosNavHost(
                     navController.navigate(ChaosDestinations.communityPostRoute(postId))
                 }
             )
-        }
-    }
-}
-
-// TEMPORARY PLACEHOLDER - Create this screen based on ChaosDetailScreen
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun CommunityPostDetailScreen(
-    postId: String,
-    onNavigateBack: () -> Unit,
-    onNavigateToSupport: () -> Unit
-) {
-    // For now, use the existing ChaosDetailScreen as a temporary solution
-    // But pass a flag to indicate it's a community post
-    Timber.d("🌍 CommunityPostDetailScreen called with postId: $postId")
-
-    // TODO: Create proper CommunityPostDetailScreen
-    // For now, show a simple error message
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Community Post") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                "Community Post Detail",
-                style = MaterialTheme.typography.headlineMedium
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                "Post ID: $postId",
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                "This will load community post data from the community_feed collection.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Button(onClick = onNavigateToSupport) {
-                Text("Give Support")
-            }
         }
     }
 }

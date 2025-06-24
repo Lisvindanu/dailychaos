@@ -102,9 +102,29 @@ interface CommunityRepository {
  * Ini untuk method yang cuma ada di implementation, bukan di interface utama
  */
 interface CommunityRepositoryExtended : CommunityRepository {
+
+    // ============================================================================
+    // ENHANCED SUPPORT OPERATIONS
+    // ============================================================================
+
     /**
-     * Check if user has given support to a post and return the support type
+     * Get user's current support type for a specific post
      * Returns null if user hasn't given support
      */
     suspend fun getUserSupportType(postId: String, userId: String): SupportType?
+
+    /**
+     * 🚨 NEW: Check if user is trying to give the same support type
+     * Useful for ViewModel confirmation logic
+     */
+    suspend fun isSameSupportType(postId: String, userId: String, supportType: SupportType): Boolean
+
+    // ============================================================================
+    // REPORT OPERATIONS
+    // ============================================================================
+
+    /**
+     * Report a community post
+     */
+    override suspend fun reportPost(postId: String, userId: String, reason: String): Result<Unit>
 }
