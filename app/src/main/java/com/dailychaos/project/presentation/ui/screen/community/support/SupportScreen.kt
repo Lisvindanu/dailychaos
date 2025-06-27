@@ -1,4 +1,3 @@
-// File: app/src/main/java/com/dailychaos/project/presentation/ui/screen/community/support/SupportScreen.kt
 package com.dailychaos.project.presentation.ui.screen.community.support
 
 import android.os.Build
@@ -7,13 +6,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,12 +27,8 @@ import com.dailychaos.project.presentation.ui.component.ParchmentCard
 import com.dailychaos.project.presentation.ui.component.UserAvatar
 import com.dailychaos.project.util.timeAgo
 
-/**
- * Support Screen - Comment System untuk Community Posts
- * "Tempat dimana adventurers saling memberikan dukungan melalui komentar"
- */
 @RequiresApi(Build.VERSION_CODES.O)
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SupportScreen(
     postId: String,
@@ -45,12 +38,10 @@ fun SupportScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Initialize dengan postId
     LaunchedEffect(postId) {
         viewModel.initialize(postId)
     }
 
-    // Handle error messages
     LaunchedEffect(uiState.error) {
         uiState.error?.let { error ->
             snackbarHostState.showSnackbar(error)
@@ -58,12 +49,6 @@ fun SupportScreen(
         }
     }
 
-    val pullRefreshState = rememberPullRefreshState(
-        refreshing = uiState.isRefreshing,
-        onRefresh = { viewModel.onEvent(SupportEvent.RefreshComments) }
-    )
-
-    // Comment Dialog
     if (uiState.showCommentDialog) {
         CommentDialog(
             commentText = uiState.commentText,
@@ -96,7 +81,7 @@ fun SupportScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 }
             )
@@ -110,11 +95,12 @@ fun SupportScreen(
             }
         }
     ) { paddingValues ->
-        Box(
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh = { viewModel.onEvent(SupportEvent.RefreshComments) },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .pullRefresh(pullRefreshState)
         ) {
             when {
                 uiState.isLoading -> {
@@ -142,7 +128,6 @@ fun SupportScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        // Support Statistics Header
                         item {
                             SupportStatisticsCard(
                                 totalComments = uiState.totalComments,
@@ -150,7 +135,6 @@ fun SupportScreen(
                             )
                         }
 
-                        // Comments List
                         items(uiState.comments) { comment ->
                             SupportCommentCard(
                                 comment = comment,
@@ -168,19 +152,12 @@ fun SupportScreen(
                             )
                         }
 
-                        // Bottom spacing
                         item {
-                            Spacer(modifier = Modifier.height(80.dp)) // Account for FAB
+                            Spacer(modifier = Modifier.height(80.dp))
                         }
                     }
                 }
             }
-
-            PullRefreshIndicator(
-                refreshing = uiState.isRefreshing,
-                state = pullRefreshState,
-                modifier = Modifier.align(Alignment.TopCenter)
-            )
         }
     }
 }
@@ -251,7 +228,6 @@ private fun SupportCommentCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -274,7 +250,6 @@ private fun SupportCommentCard(
                     )
                 }
 
-                // Support type badge
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
@@ -299,7 +274,6 @@ private fun SupportCommentCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Content
             Text(
                 comment.content,
                 style = MaterialTheme.typography.bodyMedium,
@@ -321,7 +295,6 @@ private fun SupportCommentCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -330,7 +303,6 @@ private fun SupportCommentCard(
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Like button
                     IconButton(
                         onClick = onLike,
                         modifier = Modifier.size(32.dp)
@@ -355,7 +327,6 @@ private fun SupportCommentCard(
                     }
                 }
 
-                // Support level indicator
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -369,7 +340,6 @@ private fun SupportCommentCard(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    // More actions
                     IconButton(
                         onClick = onReport,
                         modifier = Modifier.size(32.dp)
@@ -447,7 +417,6 @@ private fun CommentDialog(
         },
         text = {
             Column {
-                // Comment text input
                 OutlinedTextField(
                     value = commentText,
                     onValueChange = onCommentTextChange,
@@ -460,7 +429,6 @@ private fun CommentDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Support Type Selection
                 Text(
                     "Choose Support Type:",
                     style = MaterialTheme.typography.labelMedium,
@@ -468,7 +436,6 @@ private fun CommentDialog(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // ✅ FIX: Use chunked to fit support types in rows
                 val supportTypes = SupportType.values().toList()
                 supportTypes.chunked(2).forEach { rowTypes ->
                     Row(
@@ -485,7 +452,6 @@ private fun CommentDialog(
                                 modifier = Modifier.weight(1f)
                             )
                         }
-                        // Add spacer if odd number of items in row
                         if (rowTypes.size == 1) {
                             Spacer(modifier = Modifier.weight(1f))
                         }
@@ -495,7 +461,6 @@ private fun CommentDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Support Level Selection
                 Text(
                     "Support Intensity:",
                     style = MaterialTheme.typography.labelMedium,
@@ -540,7 +505,6 @@ private fun CommentDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Anonymous toggle
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
@@ -580,7 +544,6 @@ private fun CommentDialog(
     )
 }
 
-// Helper functions
 private fun getSupportEmoji(supportType: SupportType): String {
     return when (supportType) {
         SupportType.HEART -> "💝"

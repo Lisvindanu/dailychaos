@@ -48,8 +48,14 @@ android {
         System.getenv("FIREBASE_PROJECT_ID") ?:
         "daily-chaos-dev"
 
+        // Firebase App Check Debug Token (untuk debug builds)
+        val firebaseAppCheckDebugToken = localProperties.getProperty("FIREBASE_APP_CHECK_DEBUG_TOKEN") ?:
+        System.getenv("FIREBASE_APP_CHECK_DEBUG_TOKEN") ?:
+        ""
+
         buildConfigField("String", "APP_NAME", "\"$appName\"")
         buildConfigField("String", "FIREBASE_PROJECT_ID", "\"$firebaseProjectId\"")
+        buildConfigField("String", "FIREBASE_APP_CHECK_DEBUG_TOKEN", "\"$firebaseAppCheckDebugToken\"")
     }
 
     buildTypes {
@@ -71,8 +77,14 @@ android {
             System.getenv("FIREBASE_PROJECT_ID") ?:
             "daily-chaos-dev"
 
+            // Firebase App Check Debug Token (untuk debug builds)
+            val firebaseAppCheckDebugToken = localProperties.getProperty("FIREBASE_APP_CHECK_DEBUG_TOKEN") ?:
+            System.getenv("FIREBASE_APP_CHECK_DEBUG_TOKEN") ?:
+            ""
+
             buildConfigField("String", "APP_NAME", "\"$appName\"")
             buildConfigField("String", "FIREBASE_PROJECT_ID", "\"$firebaseProjectId\"")
+            buildConfigField("String", "FIREBASE_APP_CHECK_DEBUG_TOKEN", "\"$firebaseAppCheckDebugToken\"")
         }
 
         // FIXED: Properly configure release build type
@@ -93,6 +105,7 @@ android {
 
             buildConfigField("String", "APP_NAME", "\"Daily Chaos\"")
             buildConfigField("String", "FIREBASE_PROJECT_ID", "\"$firebaseProjectId\"")
+            buildConfigField("String", "FIREBASE_APP_CHECK_DEBUG_TOKEN", "\"\"") // Empty untuk release
         }
     }
 
@@ -169,7 +182,9 @@ dependencies {
     implementation(libs.androidx.compose.navigation)
 
     // Material - KEEP ONLY ONE VERSION
-    implementation(libs.material)
+//    implementation(libs.material)
+    implementation(libs.androidx.material3)
+    implementation(libs.google.material)
 
     // Firebase
     implementation(platform(libs.firebase.bom))
@@ -254,5 +269,5 @@ dependencies {
     implementation(libs.timber)
 
     // Animation
-    implementation("androidx.compose.animation:animation:1.8.2")
+    implementation(libs.androidx.animation.v182)
 }

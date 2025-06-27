@@ -1,15 +1,13 @@
-// File: app/src/main/java/com/dailychaos/project/presentation/ui/screen/home/HomeScreen.kt
 package com.dailychaos.project.presentation.ui.screen.home
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,7 +27,8 @@ import com.dailychaos.project.presentation.ui.component.KonoSubaQuote
 import com.dailychaos.project.presentation.ui.component.LoadingIndicator
 import timber.log.Timber
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
+@RequiresApi(Build.VERSION_CODES.O)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateToCreateChaos: () -> Unit = {},
@@ -38,7 +37,7 @@ fun HomeScreen(
     onNavigateToEntry: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
-    konoSubaApiService: KonoSubaApiService? = null // Added API service parameter
+    konoSubaApiService: KonoSubaApiService? = null
 ) {
 
     LaunchedEffect(Unit) {
@@ -47,23 +46,16 @@ fun HomeScreen(
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // Error handling
     uiState.errorMessage?.let { errorMessage ->
         LaunchedEffect(errorMessage) {
             // TODO: Show snackbar or handle error display
         }
     }
 
-    // Pull to refresh
-    val pullRefreshState = rememberPullRefreshState(
-        refreshing = uiState.isRefreshing,
-        onRefresh = { viewModel.onEvent(HomeUiEvent.Refresh) }
-    )
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .pullRefresh(pullRefreshState)
+    PullToRefreshBox(
+        isRefreshing = uiState.isRefreshing,
+        onRefresh = { viewModel.onEvent(HomeUiEvent.Refresh) },
+        modifier = modifier.fillMaxSize()
     ) {
         LazyColumn(
             modifier = Modifier
@@ -73,21 +65,19 @@ fun HomeScreen(
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
             item {
-                // Welcome Header dengan stats terintegrasi
                 WelcomeHeaderWithStats(
                     user = uiState.user,
                     todayStats = uiState.todayStats,
-                    isStatsLoading = uiState.isUserLoading // isStatsLoading terikat pada isUserLoading
+                    isStatsLoading = uiState.isUserLoading
                 )
             }
 
-            // Daily Quote (only show if available) - UPDATED with API service and gestures
             uiState.dailyQuote?.let { quote ->
                 item {
                     KonoSubaQuote(
                         quote = quote.text,
                         character = quote.character.displayName,
-                        apiService = konoSubaApiService, // Pass API service for character images
+                        apiService = konoSubaApiService,
                         onRefreshQuote = { viewModel.onEvent(HomeUiEvent.RefreshQuote) },
                         onNextQuote = { viewModel.onEvent(HomeUiEvent.NextQuote) },
                         showRefreshButton = true
@@ -96,7 +86,6 @@ fun HomeScreen(
             }
 
             item {
-                // Achievement/Streak Section - dipindah ke atas untuk visibility
                 AchievementSection(
                     achievements = uiState.achievements,
                     currentStreak = uiState.currentStreak,
@@ -105,7 +94,6 @@ fun HomeScreen(
             }
 
             item {
-                // Recent Chaos Entries - main content
                 RecentChaosSection(
                     recentEntries = uiState.recentEntries,
                     isLoading = uiState.isEntriesLoading,
@@ -126,7 +114,6 @@ fun HomeScreen(
                 )
             }
 
-            // Community highlights (only show if available)
             uiState.communityHighlight?.let { highlight ->
                 item {
                     CommunityHighlightsSection(
@@ -141,14 +128,6 @@ fun HomeScreen(
             }
         }
 
-        // Pull to refresh indicator
-        PullRefreshIndicator(
-            refreshing = uiState.isRefreshing,
-            state = pullRefreshState,
-            modifier = Modifier.align(Alignment.TopCenter)
-        )
-
-        // Error handling UI
         if (uiState.hasError && !uiState.isLoading) {
             ErrorMessage(
                 message = uiState.errorMessage ?: "Something went wrong",
@@ -170,7 +149,6 @@ private fun WelcomeHeaderWithStats(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            // DIUBAH: Menggunakan warna primer (WoodBrown) agar lebih menonjol
             containerColor = MaterialTheme.colorScheme.primary
         )
     ) {
@@ -192,23 +170,19 @@ private fun WelcomeHeaderWithStats(
                 },
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                // DIUBAH: Menggunakan warna onPrimary (Parchment) untuk kontras
                 color = MaterialTheme.colorScheme.onPrimary,
                 textAlign = TextAlign.Center
             )
             Text(
                 text = "Ready for today's adventure?",
                 style = MaterialTheme.typography.bodyMedium,
-                // DIUBAH: Menggunakan warna onPrimary (Parchment) untuk kontras
                 color = MaterialTheme.colorScheme.onPrimary,
                 textAlign = TextAlign.Center
             )
 
-            // Today's quick stats integrated in header
             if (!isStatsLoading && (todayStats.entriesCount > 0 || todayStats.miniWinsCount > 0)) {
                 Spacer(modifier = Modifier.height(16.dp))
-                Divider(
-                    // DIUBAH: Disesuaikan untuk kontras
+                HorizontalDivider(
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f),
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
@@ -223,7 +197,6 @@ private fun WelcomeHeaderWithStats(
                             emoji = "📝",
                             value = todayStats.entriesCount.toString(),
                             label = "Entries Today",
-                            // DIUBAH: Mengirimkan warna yang tepat
                             contentColor = MaterialTheme.colorScheme.onPrimary
                         )
                     }
@@ -232,7 +205,6 @@ private fun WelcomeHeaderWithStats(
                             emoji = "🏆",
                             value = todayStats.miniWinsCount.toString(),
                             label = "Mini Wins",
-                            // DIUBAH: Mengirimkan warna yang tepat
                             contentColor = MaterialTheme.colorScheme.onPrimary
                         )
                     }
@@ -241,7 +213,6 @@ private fun WelcomeHeaderWithStats(
                             emoji = "💙",
                             value = todayStats.supportGivenCount.toString(),
                             label = "Support Given",
-                            // DIUBAH: Mengirimkan warna yang tepat
                             contentColor = MaterialTheme.colorScheme.onPrimary
                         )
                     }
@@ -256,7 +227,6 @@ private fun QuickStatItem(
     emoji: String,
     value: String,
     label: String,
-    // DIUBAH: Menambahkan parameter warna
     contentColor: Color
 ) {
     Column(
@@ -270,13 +240,11 @@ private fun QuickStatItem(
             text = value,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            // DIUBAH: Menggunakan warna dari parameter
             color = contentColor
         )
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
-            // DIUBAH: Menggunakan warna dari parameter dengan sedikit transparansi
             color = contentColor.copy(alpha = 0.8f)
         )
     }

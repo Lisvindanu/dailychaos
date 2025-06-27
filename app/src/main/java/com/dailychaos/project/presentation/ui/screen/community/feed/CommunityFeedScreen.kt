@@ -1,20 +1,18 @@
 package com.dailychaos.project.presentation.ui.screen.community.feed
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.People
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,7 +25,8 @@ import com.dailychaos.project.presentation.ui.component.EmptyState
 import com.dailychaos.project.presentation.ui.component.ErrorMessage
 import com.dailychaos.project.presentation.ui.component.LoadingIndicator
 
-@OptIn(ExperimentalMaterialApi::class, ExperimentalMaterial3Api::class)
+@RequiresApi(Build.VERSION_CODES.O)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CommunityFeedScreen(
     viewModel: CommunityFeedViewModel = hiltViewModel(),
@@ -37,22 +36,16 @@ fun CommunityFeedScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // ✅ Handle error messages
+    // Handle error messages
     LaunchedEffect(uiState.error) {
         uiState.error?.let { error ->
             snackbarHostState.showSnackbar(error)
-            // Auto-clear error after showing
             viewModel.onEvent(CommunityFeedEvent.ClearError)
         }
     }
 
-    val pullRefreshState = rememberPullRefreshState(
-        refreshing = uiState.isRefreshing,
-        onRefresh = { viewModel.onEvent(CommunityFeedEvent.Refresh) }
-    )
-
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }, // ✅ ENHANCED: Add snackbar support
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Community Feed") },
@@ -64,11 +57,12 @@ fun CommunityFeedScreen(
             )
         }
     ) { paddingValues ->
-        Box(
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh = { viewModel.onEvent(CommunityFeedEvent.Refresh) },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .pullRefresh(pullRefreshState)
         ) {
             when {
                 uiState.isLoading -> {
@@ -116,28 +110,21 @@ fun CommunityFeedScreen(
                             )
                         }
 
-                        // ✅ ENHANCED: Add some bottom padding for last item
                         item {
                             androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
                         }
                     }
                 }
             }
-
-            PullRefreshIndicator(
-                refreshing = uiState.isRefreshing,
-                state = pullRefreshState,
-                modifier = Modifier.align(Alignment.TopCenter)
-            )
         }
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Preview(showBackground = true)
 @Composable
 fun CommunityFeedScreenPreview() {
     DailyChaosTheme {
-        // Fake implementation to satisfy navigation
         CommunityFeedScreen(onNavigateToPost = {}, onNavigateToTwins = {})
     }
 }

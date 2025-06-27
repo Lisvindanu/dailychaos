@@ -283,7 +283,8 @@ class SupportViewModel @Inject constructor(
                 supportType = SupportType.STRENGTH,
                 supportLevel = 4,
                 isAnonymous = true,
-                createdAt = kotlinx.datetime.Clock.System.now().minus(kotlinx.datetime.DateTimeUnit.HOUR * 2),
+                createdAt = kotlinx.datetime.Clock.System.now()
+                    .minus(1, kotlinx.datetime.DateTimeUnit.HOUR * 2),
                 likeCount = 5,
                 isLikedByCurrentUser = false
             ),
@@ -297,7 +298,8 @@ class SupportViewModel @Inject constructor(
                 supportType = SupportType.HUG,
                 supportLevel = 5,
                 isAnonymous = true,
-                createdAt = kotlinx.datetime.Clock.System.now().minus(kotlinx.datetime.DateTimeUnit.HOUR * 1),
+                createdAt = kotlinx.datetime.Clock.System.now()
+                    .minus(1, kotlinx.datetime.DateTimeUnit.HOUR * 1),
                 likeCount = 8,
                 isLikedByCurrentUser = true
             ),
@@ -311,7 +313,8 @@ class SupportViewModel @Inject constructor(
                 supportType = SupportType.HOPE,
                 supportLevel = 3,
                 isAnonymous = true,
-                createdAt = kotlinx.datetime.Clock.System.now().minus(kotlinx.datetime.DateTimeUnit.MINUTE * 30),
+                createdAt = kotlinx.datetime.Clock.System.now()
+                    .minus(1, kotlinx.datetime.DateTimeUnit.MINUTE * 30),
                 likeCount = 3,
                 isLikedByCurrentUser = false
             )

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.Surface
@@ -35,7 +36,7 @@ fun MainNavigationBar(
     ) {
         Column {
             // Divider sebagai border cokelat di bagian atas
-            Divider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
+            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outline)
 
             NavigationBar(
                 modifier = Modifier,

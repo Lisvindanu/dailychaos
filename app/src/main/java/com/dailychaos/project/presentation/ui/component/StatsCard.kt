@@ -2,6 +2,9 @@ package com.dailychaos.project.presentation.ui.component
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingFlat
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingFlat
 import androidx.compose.material.icons.filled.TrendingUp
@@ -75,9 +78,9 @@ fun StatsCard(
 @Composable
 private fun TrendIndicator(trend: StatsCardTrend) {
     val (icon, color) = when (trend) {
-        StatsCardTrend.UP -> Icons.Default.TrendingUp to MaterialTheme.colorScheme.secondary
-        StatsCardTrend.DOWN -> Icons.Default.TrendingDown to MaterialTheme.colorScheme.error
-        StatsCardTrend.STABLE -> Icons.Default.TrendingFlat to MaterialTheme.colorScheme.outline
+        StatsCardTrend.UP -> Icons.AutoMirrored.Filled.TrendingUp to MaterialTheme.colorScheme.secondary
+        StatsCardTrend.DOWN -> Icons.AutoMirrored.Filled.TrendingDown to MaterialTheme.colorScheme.error
+        StatsCardTrend.STABLE -> Icons.AutoMirrored.Filled.TrendingFlat to MaterialTheme.colorScheme.outline
     }
 
     Icon(

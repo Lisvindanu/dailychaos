@@ -7,13 +7,12 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import com.dailychaos.project.util.Constants
-import dagger.hilt.android.HiltAndroidApp
-import timber.log.Timber
-
-import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
+import com.google.firebase.crashlytics.FirebaseCrashlytics
+import dagger.hilt.android.HiltAndroidApp
+import timber.log.Timber
 
 /**
  * Daily Chaos Application Class
@@ -27,39 +26,44 @@ class ChaosApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // Initialize Timber for logging (IMPORTANT: Do this first if you use Timber)
+        // Inisialisasi Timber untuk logging (PENTING: Lakukan ini pertama jika menggunakan Timber)
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
         }
 
-        // Set debug token BEFORE initializing Firebase App Check
-        if (BuildConfig.DEBUG) {
-            // Set debug token langsung di system property
-//            System.setProperty("firebase.appcheck.debug_token", "0C43172D-6685-4894-8E6E-6966E1ED395B")
-        }
+        // Inisialisasi Firebase App Check
+        initializeFirebaseAppCheck()
 
-        // Initialize Firebase App Check
+        // Inisialisasi komponen aplikasi lainnya
+        initializeApp()
+        createNotificationChannels()
+        initializeCrashReporting()
+    }
+
+    private fun initializeFirebaseAppCheck() {
         val firebaseAppCheck = FirebaseAppCheck.getInstance()
         if (BuildConfig.DEBUG) {
-            // Use DebugAppCheckProviderFactory for debug builds
+            // Setel token debug dari BuildConfig jika tersedia
+            if (BuildConfig.FIREBASE_APP_CHECK_DEBUG_TOKEN.isNotBlank()) {
+                System.setProperty(
+                    "firebase.appcheck.debug_token",
+                    BuildConfig.FIREBASE_APP_CHECK_DEBUG_TOKEN
+                )
+                Timber.d("Firebase App Check debug token set from BuildConfig: ${BuildConfig.FIREBASE_APP_CHECK_DEBUG_TOKEN}")
+            } else {
+                Timber.w("Firebase App Check debug token is empty. Please set FIREBASE_APP_CHECK_DEBUG_TOKEN in local.properties")
+            }
+
             firebaseAppCheck.installAppCheckProviderFactory(
                 DebugAppCheckProviderFactory.getInstance()
             )
-            Timber.d("Firebase App Check initialized with DebugAppCheckProviderFactory using token: 0C43172D-6685-4894-8E6E-6966E1ED395B")
+            Timber.d("Firebase App Check initialized with DebugAppCheckProviderFactory.")
         } else {
-            // Use PlayIntegrityAppCheckProviderFactory for production builds
             firebaseAppCheck.installAppCheckProviderFactory(
                 PlayIntegrityAppCheckProviderFactory.getInstance()
             )
             Timber.d("Firebase App Check initialized with PlayIntegrityAppCheckProviderFactory.")
         }
-
-        // Initialize other app components
-        initializeApp() // Your existing app initialization
-        createNotificationChannels() // Your existing notification channel setup
-
-        // Initialize crash reporting (your existing method)
-        // initializeCrashReporting()
     }
 
     private fun initializeApp() {
@@ -69,6 +73,9 @@ class ChaosApplication : Application() {
             Timber.d("📱 Version: ${BuildConfig.VERSION_NAME}")
             Timber.d("🔧 Debug Mode: ${BuildConfig.DEBUG}")
             Timber.d("🔥 Firebase Project: ${BuildConfig.FIREBASE_PROJECT_ID}")
+            if (BuildConfig.FIREBASE_APP_CHECK_DEBUG_TOKEN.isNotBlank()) {
+                Timber.d("🔐 Firebase App Check Debug Token: ${BuildConfig.FIREBASE_APP_CHECK_DEBUG_TOKEN}")
+            }
         }
 
         // Setup global exception handler untuk debugging
@@ -85,19 +92,31 @@ class ChaosApplication : Application() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-            val generalChannel = NotificationChannel(Constants.NOTIFICATION_CHANNEL_GENERAL, "General Notifications", NotificationManager.IMPORTANCE_DEFAULT).apply {
+            val generalChannel = NotificationChannel(
+                Constants.NOTIFICATION_CHANNEL_GENERAL,
+                "General Notifications",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
                 description = "General app notifications"
                 enableVibration(true)
                 setShowBadge(true)
             }
 
-            val supportChannel = NotificationChannel(Constants.NOTIFICATION_CHANNEL_SUPPORT, "Support Notifications", NotificationManager.IMPORTANCE_HIGH).apply {
+            val supportChannel = NotificationChannel(
+                Constants.NOTIFICATION_CHANNEL_SUPPORT,
+                "Support Notifications",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
                 description = "Notifications when you receive support from the community"
                 enableVibration(true)
                 setShowBadge(true)
             }
 
-            val syncChannel = NotificationChannel(Constants.NOTIFICATION_CHANNEL_SYNC, "Sync Status", NotificationManager.IMPORTANCE_LOW).apply {
+            val syncChannel = NotificationChannel(
+                Constants.NOTIFICATION_CHANNEL_SYNC,
+                "Sync Status",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
                 description = "Data synchronization status"
                 enableVibration(false)
                 setShowBadge(false)
@@ -112,22 +131,13 @@ class ChaosApplication : Application() {
     }
 
     private fun initializeCrashReporting() {
-        // TODO: Initialize Firebase Crashlytics when ready for production
-        // FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(!BuildConfig.DEBUG)
+        // Aktifkan koleksi data Crashlytics hanya untuk build non-debug
+        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(!BuildConfig.DEBUG)
 
         if (BuildConfig.DEBUG) {
-            Timber.d("🔍 Crash reporting setup (disabled in debug)")
+            Timber.d("🔍 Crash reporting setup (collection disabled in debug)")
+        } else {
+            Timber.d("🚀 Crash reporting enabled for release build.")
         }
-    }
-
-    companion object {
-        lateinit var instance: ChaosApplication
-            private set
-
-        fun getAppContext(): Context = instance.applicationContext
-    }
-
-    init {
-        instance = this
     }
 }
