@@ -43,30 +43,34 @@ object RepositoryModule {
     @Singleton
     fun provideChaosRepository(
         firestoreService: FirebaseFirestoreService,
-        authService: FirebaseAuthService // Diperlukan di ChaosRepositoryImpl
+        authService: FirebaseAuthService
     ): ChaosRepository {
         return ChaosRepositoryImpl(firestoreService, authService)
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    @Provides
-    @Singleton
-    fun provideCommunityRepository(
-        firestore: FirebaseFirestore
-    ): CommunityRepository {
-        return CommunityRepositoryImpl(firestore)
-    }
-
     /**
-     * Provide extended CommunityRepository implementation
-     * Menggunakan @Provides karena kita perlu cast dari instance yang sama
+     * ✅ FIXED: Provide CommunityRepositoryExtended with proper AuthRepository dependency
      */
     @RequiresApi(Build.VERSION_CODES.O)
     @Provides
     @Singleton
     fun provideCommunityRepositoryExtended(
-        firestore: FirebaseFirestore
+        firestore: FirebaseFirestore,
+        authRepository: AuthRepository // ✅ FIXED: Add missing AuthRepository parameter
     ): CommunityRepositoryExtended {
-        return CommunityRepositoryImpl(firestore)
+        return CommunityRepositoryImpl(firestore, authRepository)
     }
+
+    /**
+     * ✅ FIXED: Provide base CommunityRepository that delegates to Extended implementation
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    @Provides
+    @Singleton
+    fun provideCommunityRepository(
+        communityRepositoryExtended: CommunityRepositoryExtended
+    ): CommunityRepository {
+        return communityRepositoryExtended
+    }
+
 }

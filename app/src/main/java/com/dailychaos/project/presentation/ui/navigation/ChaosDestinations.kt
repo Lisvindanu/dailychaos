@@ -21,6 +21,9 @@ object ChaosDestinations {
     const val COMMUNITY_ROUTE = "community"
     const val CREATE_CHAOS_ROUTE = "create_chaos"
 
+    // ✅ NEW: Test route untuk pagination dan filter
+    const val COMMUNITY_TEST_ROUTE = "community_test"
+
     // FIXED: Separate routes for personal chaos entries vs community posts
     const val CHAOS_DETAIL_ROUTE = "chaos_detail"        // For personal entries
     const val COMMUNITY_POST_ROUTE = "community_post"    // For community posts
@@ -53,6 +56,7 @@ object ChaosDestinations {
         const val HOME = HOME_ROUTE
         const val JOURNAL = JOURNAL_ROUTE
         const val COMMUNITY = COMMUNITY_ROUTE
+        const val COMMUNITY_TEST = COMMUNITY_TEST_ROUTE // ✅ NEW
         const val PROFILE = PROFILE_ROUTE
     }
 

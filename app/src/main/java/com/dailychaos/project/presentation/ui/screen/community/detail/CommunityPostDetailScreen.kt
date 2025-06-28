@@ -10,6 +10,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -205,7 +207,7 @@ fun CommunityPostDetailScreen(
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Icon(
-                                            Icons.Default.Comment,
+                                            Icons.AutoMirrored.Filled.Comment,
                                             contentDescription = null,
                                             tint = MaterialTheme.colorScheme.primary
                                         )
@@ -217,7 +219,7 @@ fun CommunityPostDetailScreen(
                                         )
                                         Spacer(Modifier.weight(1f))
                                         Icon(
-                                            Icons.Default.ArrowForward,
+                                            Icons.AutoMirrored.Filled.ArrowForward,
                                             contentDescription = null,
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -240,7 +242,7 @@ fun CommunityPostDetailScreen(
                                             containerColor = MaterialTheme.colorScheme.primary
                                         )
                                     ) {
-                                        Icon(Icons.Default.Comment, contentDescription = null)
+                                        Icon(Icons.AutoMirrored.Filled.Comment, contentDescription = null)
                                         Spacer(Modifier.width(8.dp))
                                         Text("View All Comments & Support")
                                     }

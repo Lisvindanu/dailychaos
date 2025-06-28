@@ -227,7 +227,7 @@ fun KonoSubaQuote(
                         AnimatedContent(
                             targetState = quote,
                             transitionSpec = {
-                                fadeIn(animationSpec = tween(400)) with
+                                fadeIn(animationSpec = tween(400)) togetherWith
                                         fadeOut(animationSpec = tween(200))
                             },
                             label = "quote_animation"

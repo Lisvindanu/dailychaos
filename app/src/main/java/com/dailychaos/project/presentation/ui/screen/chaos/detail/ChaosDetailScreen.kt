@@ -1,11 +1,14 @@
 package com.dailychaos.project.presentation.ui.screen.chaos.detail
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -31,6 +34,7 @@ import com.dailychaos.project.util.toFriendlyDateString
 import com.dailychaos.project.util.toTimeString
 import kotlinx.coroutines.flow.collectLatest
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChaosDetailScreen(
@@ -57,7 +61,7 @@ fun ChaosDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Chaos Entry Detail") },
-                navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.Default.ArrowBack, "Back") } },
+                navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
                 actions = {
                     uiState.entry?.let {
                         IconButton(onClick = { onNavigateToEdit(it.id) }) { Icon(Icons.Default.Edit, "Edit") }

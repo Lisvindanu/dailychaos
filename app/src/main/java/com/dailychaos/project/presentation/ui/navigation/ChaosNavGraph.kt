@@ -121,6 +121,7 @@ fun ChaosNavGraph(
         )
     }
 }
+
 @Composable
 private fun ChaosBottomNavigationBar(
     currentRoute: String?,
@@ -340,7 +341,7 @@ private fun ChaosNavHost(
             )
         }
 
-        // Main App Graph - UPDATED: Added konoSubaApiService to HomeScreen
+        // Main App Graph - UPDATED: Removed test navigation
         composable(ChaosDestinations.HOME_ROUTE) {
             HomeScreen(
                 onNavigateToCreateChaos = {
@@ -353,10 +354,9 @@ private fun ChaosNavHost(
                     navController.navigate(ChaosDestinations.COMMUNITY_ROUTE)
                 },
                 onNavigateToEntry = { entryId ->
-                    // FIXED: Personal chaos entries from home
                     navController.navigate(ChaosDestinations.chaosDetailRoute(entryId))
                 },
-                konoSubaApiService = konoSubaApiService // ADDED: Pass API service to HomeScreen
+                konoSubaApiService = konoSubaApiService
             )
         }
 
