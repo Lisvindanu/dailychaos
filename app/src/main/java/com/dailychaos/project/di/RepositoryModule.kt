@@ -8,10 +8,12 @@ import com.dailychaos.project.data.remote.firebase.FirebaseFirestoreService
 import com.dailychaos.project.data.repository.AuthRepositoryImpl
 import com.dailychaos.project.data.repository.ChaosRepositoryImpl
 import com.dailychaos.project.data.repository.CommunityRepositoryImpl
+import com.dailychaos.project.data.repository.CommunityRepositoryPaginationImpl
 import com.dailychaos.project.domain.repository.AuthRepository
 import com.dailychaos.project.domain.repository.ChaosRepository
 import com.dailychaos.project.domain.repository.CommunityRepository
 import com.dailychaos.project.domain.repository.CommunityRepositoryExtended
+import com.dailychaos.project.domain.repository.CommunityRepositoryPagination
 import com.dailychaos.project.preferences.UserPreferences
 import com.dailychaos.project.util.ValidationUtil
 import com.google.firebase.firestore.FirebaseFirestore
@@ -69,4 +71,6 @@ object RepositoryModule {
     ): CommunityRepositoryExtended {
         return CommunityRepositoryImpl(firestore)
     }
+
+
 }
