@@ -354,10 +354,13 @@ private fun ChaosNavHost(
                     navController.navigate(ChaosDestinations.COMMUNITY_ROUTE)
                 },
                 onNavigateToEntry = { entryId ->
-                    // FIXED: Personal chaos entries from home
                     navController.navigate(ChaosDestinations.chaosDetailRoute(entryId))
                 },
-                konoSubaApiService = konoSubaApiService // ADDED: Pass API service to HomeScreen
+                // ADD THIS LINE:
+                onNavigateToTest = {
+                    navController.navigate(ChaosDestinations.COMMUNITY_TEST_ROUTE)
+                },
+                konoSubaApiService = konoSubaApiService
             )
         }
 
