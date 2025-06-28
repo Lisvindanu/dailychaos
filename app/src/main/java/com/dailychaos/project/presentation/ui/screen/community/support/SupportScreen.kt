@@ -119,6 +119,24 @@ fun SupportScreen(
         )
     }
 
+    // ✅ NEW: Report confirmation dialog
+    ReportConfirmationDialog(
+        isVisible = uiState.showReportDialog,
+        reportReason = uiState.reportReason,
+        onReasonChange = { reason ->
+            viewModel.onEvent(SupportEvent.UpdateReportReason(reason))
+        },
+        onConfirm = {
+            uiState.selectedCommentToReport?.let { commentId ->
+                viewModel.onEvent(SupportEvent.ConfirmReport(commentId, uiState.reportReason))
+            }
+            viewModel.onEvent(SupportEvent.HideReportDialog)
+        },
+        onDismiss = {
+            viewModel.onEvent(SupportEvent.HideReportDialog)
+        }
+    )
+
     Scaffold(
         snackbarHost = {
             SnackbarHost(
@@ -324,6 +342,7 @@ fun SupportScreen(
                             ) {
                                 EnhancedSupportCommentCard(
                                     comment = comment,
+                                    uiState = uiState,
                                     isExpanded = uiState.expandedCommentId == comment.id,
                                     onExpandToggle = {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -337,9 +356,14 @@ fun SupportScreen(
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         viewModel.onEvent(SupportEvent.LikeComment(comment.id))
                                     },
-                                    onReport = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        viewModel.onEvent(SupportEvent.ReportComment(comment.id, "Inappropriate"))
+                                    onShowMenu = {
+                                        viewModel.onEvent(SupportEvent.ShowCommentMenu(comment.id))
+                                    },
+                                    onHideMenu = {
+                                        viewModel.onEvent(SupportEvent.HideCommentMenu)
+                                    },
+                                    onShowReportDialog = {
+                                        viewModel.onEvent(SupportEvent.ShowReportDialog(comment.id))
                                     },
                                     onReply = {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -474,14 +498,17 @@ private fun EnhancedSupportStatisticsCard(
     }
 }
 
-// ✅ Enhanced: Premium comment card with smooth animations
+// ✅ Enhanced: Premium comment card with smooth animations and improved menu
 @Composable
 private fun EnhancedSupportCommentCard(
     comment: SupportComment,
+    uiState: SupportUiState,
     isExpanded: Boolean,
     onExpandToggle: () -> Unit,
     onLike: () -> Unit,
-    onReport: () -> Unit,
+    onShowMenu: () -> Unit,
+    onHideMenu: () -> Unit,
+    onShowReportDialog: () -> Unit,
     onReply: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
@@ -605,114 +632,221 @@ private fun EnhancedSupportCommentCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Support level stars
+            // Support level stars - FIXED
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AnimatedVisibility(
-                    visible = true,
-                    enter = scaleIn(
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy
-                        ),
-                        initialScale = 0.8f
-                    ) + fadeIn()
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Icon(
-                        Icons.Default.Star,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                getSupportLevelText(comment.supportLevel),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Action buttons with enhanced interaction
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Like button with animation
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val likeScale by animateFloatAsState(
-                    targetValue = if (comment.isLikedByCurrentUser) 1.2f else 1f,
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                    label = "like_scale"
-                )
-
-                IconButton(
-                    onClick = onLike,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .scale(likeScale)
-                ) {
-                    AnimatedContent(
-                        targetState = comment.isLikedByCurrentUser,
-                        transitionSpec = {
-                            scaleIn() + fadeIn() togetherWith scaleOut() + fadeOut()
-                        },
-                        label = "like_icon"
-                    ) { isLiked ->
+                    repeat(comment.supportLevel) { index ->
                         Icon(
-                            if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "Like",
-                            tint = if (isLiked)
-                                Color(0xFFE91E63)
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                            Icons.Default.Star,
+                            contentDescription = "${index + 1} of ${comment.supportLevel} stars",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
 
-                if (comment.likeCount > 0) {
-                    AnimatedContent(
-                        targetState = comment.likeCount,
-                        transitionSpec = {
-                            slideInVertically { it } + fadeIn() togetherWith
-                                    slideOutVertically { -it } + fadeOut()
-                        },
-                        label = "like_count"
-                    ) { count ->
-                        Text(
-                            count.toString(),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    getSupportLevelText(comment.supportLevel),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
-            // More actions button
-            IconButton(
-                onClick = onReport,
-                modifier = Modifier.size(40.dp)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Action buttons with enhanced interaction
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Default.MoreVert,
-                    contentDescription = "More",
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // Like button with animation
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val likeScale by animateFloatAsState(
+                        targetValue = if (comment.isLikedByCurrentUser) 1.2f else 1f,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                        label = "like_scale"
+                    )
+
+                    IconButton(
+                        onClick = onLike,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .scale(likeScale)
+                    ) {
+                        AnimatedContent(
+                            targetState = comment.isLikedByCurrentUser,
+                            transitionSpec = {
+                                scaleIn() + fadeIn() togetherWith scaleOut() + fadeOut()
+                            },
+                            label = "like_icon"
+                        ) { isLiked ->
+                            Icon(
+                                if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = "Like",
+                                tint = if (isLiked)
+                                    Color(0xFFE91E63)
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    if (comment.likeCount > 0) {
+                        AnimatedContent(
+                            targetState = comment.likeCount,
+                            transitionSpec = {
+                                slideInVertically { it } + fadeIn() togetherWith
+                                        slideOutVertically { -it } + fadeOut()
+                            },
+                            label = "like_count"
+                        ) { count ->
+                            Text(
+                                count.toString(),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
+                // ✅ NEW: Improved More actions button with dropdown menu
+                Box {
+                    IconButton(
+                        onClick = onShowMenu,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = "More options",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Dropdown menu
+                    DropdownMenu(
+                        expanded = uiState.showCommentMenu == comment.id,
+                        onDismissRequest = onHideMenu
+                    ) {
+                        // ✅ REMOVED: Reply option (redundant dengan Send Support FAB)
+
+                        // Report option only
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Report,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Report", color = MaterialTheme.colorScheme.error)
+                                }
+                            },
+                            onClick = {
+                                onHideMenu()
+                                onShowReportDialog()
+                            }
+                        )
+                    }
+                }
             }
         }
     }
 }
 
+// ✅ NEW: Report Confirmation Dialog
+@Composable
+private fun ReportConfirmationDialog(
+    isVisible: Boolean,
+    reportReason: String,
+    onReasonChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    if (isVisible) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Report,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Report Comment")
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        "Why are you reporting this comment?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Predefined reasons
+                    val reasons = listOf(
+                        "Spam or unwanted content",
+                        "Harassment or bullying",
+                        "Inappropriate content",
+                        "False information",
+                        "Other"
+                    )
+
+                    reasons.forEach { reason ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onReasonChange(reason) }
+                                .padding(vertical = 8.dp)
+                        ) {
+                            RadioButton(
+                                selected = reportReason == reason,
+                                onClick = { onReasonChange(reason) }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(reason, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = onConfirm,
+                    enabled = reportReason.isNotEmpty(),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Report")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
 
 // ✅ Enhanced: Premium empty state with better motivation
 @Composable
