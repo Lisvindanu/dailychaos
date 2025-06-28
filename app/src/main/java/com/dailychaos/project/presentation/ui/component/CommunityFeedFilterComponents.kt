@@ -15,10 +15,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.dailychaos.project.domain.repository.TimeFilter
+import com.dailychaos.project.domain.repository.displayName
 
 /**
- * Komponen Filter yang bisa ditambahkan ke CommunityFeedScreen existing
- * Tidak mengubah file yang sudah ada
+ * Komponen Filter untuk CommunityFeedScreen
  */
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,68 +78,82 @@ fun CommunityFeedFilterBar(
 
                 // Time Filter
                 Text(
-                    text = "Waktu",
-                    style = MaterialTheme.typography.labelMedium,
+                    text = "Time Range",
+                    style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     items(TimeFilter.values()) { timeFilter ->
                         FilterChip(
-                            selected = selectedTimeFilter == timeFilter,
                             onClick = { onTimeFilterChange(timeFilter) },
-                            label = { Text(timeFilter.displayName) }
+                            label = { Text(timeFilter.displayName) },
+                            selected = selectedTimeFilter == timeFilter
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Chaos Level Filter
                 Text(
                     text = "Chaos Level",
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(bottom = 16.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val chaosRanges = listOf(
-                        null to "All",
-                        (1..3) to "Low (1-3)",
-                        (4..6) to "Medium (4-6)",
-                        (7..8) to "High (7-8)",
-                        (9..10) to "Extreme (9-10)"
+                    FilterChip(
+                        onClick = { onChaosLevelChange(null) },
+                        label = { Text("Any Level") },
+                        selected = selectedChaosLevel == null,
+                        modifier = Modifier.weight(1f)
                     )
-
-                    items(chaosRanges) { (range, label) ->
-                        FilterChip(
-                            selected = selectedChaosLevel == range,
-                            onClick = { onChaosLevelChange(range) },
-                            label = { Text(label) }
-                        )
-                    }
+                    FilterChip(
+                        onClick = { onChaosLevelChange(1..3) },
+                        label = { Text("Low (1-3)") },
+                        selected = selectedChaosLevel == (1..3),
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        onClick = { onChaosLevelChange(4..7) },
+                        label = { Text("Med (4-7)") },
+                        selected = selectedChaosLevel == (4..7),
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        onClick = { onChaosLevelChange(8..10) },
+                        label = { Text("High (8-10)") },
+                        selected = selectedChaosLevel == (8..10),
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
                 // Tags Filter
                 if (availableTags.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     Text(
                         text = "Tags",
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
 
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         items(availableTags) { tag ->
                             FilterChip(
-                                selected = selectedTags.contains(tag),
                                 onClick = { onTagToggle(tag) },
                                 label = { Text(tag) },
+                                selected = selectedTags.contains(tag),
                                 leadingIcon = if (selectedTags.contains(tag)) {
                                     {
                                         Icon(
@@ -169,7 +183,11 @@ fun FilterSummaryChip(
             onClick = onToggleFilter,
             label = { Text("$filterCount filter${if (filterCount > 1) "s" else ""}") },
             leadingIcon = {
-                Icon(Icons.Default.FilterList, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(
+                    Icons.Default.FilterList,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
             },
             modifier = modifier
         )
@@ -204,3 +222,12 @@ fun LoadMoreIndicator(
         }
     }
 }
+
+// Extension property untuk TimeFilter display names
+val TimeFilter.displayName: String
+    get() = when (this) {
+        TimeFilter.ALL -> "All Time"
+        TimeFilter.TODAY -> "Today"
+        TimeFilter.WEEK -> "This Week"
+        TimeFilter.MONTH -> "This Month"
+    }

@@ -56,7 +56,6 @@ import com.dailychaos.project.presentation.ui.screen.splash.SplashScreen
 import com.dailychaos.project.presentation.ui.screen.community.detail.CommunityPostDetailScreen
 import com.dailychaos.project.presentation.ui.screen.community.support.SupportScreen
 import timber.log.Timber
-import com.dailychaos.project.presentation.ui.screen.community.feed.CommunityFeedTestScreen
 
 /**
  * Main Navigation Graph for Daily Chaos
@@ -386,16 +385,7 @@ private fun ChaosNavHost(
             )
         }
 
-        composable(ChaosDestinations.COMMUNITY_TEST_ROUTE) {
-            CommunityFeedTestScreen(
-                onNavigateToPost = { postId ->
-                    navController.navigate(ChaosDestinations.communityPostRoute(postId))
-                },
-                onNavigateToTwins = {
-                    navController.navigate(ChaosDestinations.CHAOS_TWINS_ROUTE)
-                }
-            )
-        }
+
 
         composable(ChaosDestinations.PROFILE_ROUTE) {
             ProfileScreen(

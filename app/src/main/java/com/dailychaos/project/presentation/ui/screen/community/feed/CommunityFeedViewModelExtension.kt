@@ -146,7 +146,6 @@ class CommunityFeedPaginationExtension(
     @RequiresApi(Build.VERSION_CODES.O)
     fun refresh() {
         loadFilteredPosts(resetPage = true)
-        baseViewModel.refreshFeed() // Also refresh the base feed
     }
 
     private fun loadFilteredPosts(
@@ -179,15 +178,10 @@ class CommunityFeedPaginationExtension(
 
                 result.fold(
                     onSuccess = { response ->
-                        // Update base ViewModel's posts
-                        if (append) {
-                            // Append to existing posts - need to call base ViewModel method
-                            // This would require adding an append method to base ViewModel
-                            Timber.d("📄 Loaded ${response.data.size} more posts (page $currentPage)")
-                        } else {
-                            // Replace posts - could update base ViewModel state
-                            Timber.d("📄 Loaded ${response.data.size} posts (page $currentPage)")
-                        }
+                        // ✅ FIXED: Update base ViewModel's posts properly
+                        baseViewModel.updatePosts(response.data, append)
+
+                        Timber.d("📄 Loaded ${response.data.size} ${if (append) "more " else ""}posts (page $currentPage)")
 
                         _paginationState.value = _paginationState.value.copy(
                             currentPage = response.page,
@@ -222,6 +216,9 @@ class CommunityFeedPaginationExtension(
 
                 result.fold(
                     onSuccess = { response ->
+                        // ✅ FIXED: Update base ViewModel's posts for search results
+                        baseViewModel.updatePosts(response.data, append = false)
+
                         Timber.d("🔍 Found ${response.data.size} posts for query: '$query'")
 
                         _paginationState.value = _paginationState.value.copy(
@@ -271,55 +268,6 @@ class CommunityFeedPaginationExtension(
                 _metadataState.value = _metadataState.value.copy(isLoading = false)
             }
         }
-    }
-}
-
-/**
- * Wrapper class yang menggabungkan base ViewModel dengan extension
- * Bisa digunakan sebagai replacement untuk existing ViewModel
- */
-class CommunityFeedViewModelWithPagination(
-    private val baseViewModel: CommunityFeedViewModel,
-    private val paginationExtension: CommunityFeedPaginationExtension
-) {
-
-    // Expose base ViewModel properties
-    val uiState = baseViewModel.uiState
-
-    // Expose extension properties
-    val filterState = paginationExtension.filterState
-    val paginationState = paginationExtension.paginationState
-    val metadataState = paginationExtension.metadataState
-    val isFilterVisible = paginationExtension.isFilterVisible
-
-    // Combined event handling
-    fun onEvent(event: CommunityFeedEvent) {
-        // Handle existing events through base ViewModel
-        baseViewModel.onEvent(event)
-    }
-
-    fun onFilterEvent(event: FilterEvent) {
-        when (event) {
-            FilterEvent.ToggleFilter -> paginationExtension.toggleFilter()
-            is FilterEvent.UpdateTimeFilter -> paginationExtension.updateTimeFilter(event.timeFilter)
-            is FilterEvent.UpdateChaosLevel -> paginationExtension.updateChaosLevelFilter(event.range)
-            is FilterEvent.ToggleTag -> paginationExtension.toggleTag(event.tag)
-            is FilterEvent.UpdateSort -> paginationExtension.updateSortBy(event.sortBy)
-            is FilterEvent.UpdateSearch -> paginationExtension.updateSearchQuery(event.query)
-            FilterEvent.ClearFilters -> paginationExtension.clearAllFilters()
-            FilterEvent.LoadMore -> paginationExtension.loadMore()
-            FilterEvent.Refresh -> paginationExtension.refresh()
-        }
-    }
-
-    // Utility methods
-    fun canLoadMore(): Boolean {
-        val pagination = paginationState.value
-        return pagination.hasNextPage && !pagination.isLoadingMore
-    }
-
-    fun getActiveFilterCount(): Int {
-        return filterState.value.getActiveFilterCount()
     }
 }
 

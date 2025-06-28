@@ -9,16 +9,18 @@ import com.dailychaos.project.domain.repository.FilterMetadata
 import com.dailychaos.project.domain.repository.PaginatedResponse
 import com.dailychaos.project.domain.repository.TimeFilter
 import com.dailychaos.project.util.Constants
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
+import java.util.*
 
 /**
  * Implementasi Pagination sebagai extension/wrapper dari repository existing
- * Tidak mengubah CommunityRepositoryImpl yang sudah ada
+ * Dengan time filter yang diperbaiki
  */
 @Singleton
 class CommunityRepositoryPaginationImpl @Inject constructor(
@@ -41,23 +43,32 @@ class CommunityRepositoryPaginationImpl @Inject constructor(
     ): Result<PaginatedResponse<CommunityPost>> {
         return try {
             Timber.d("🔍 Loading paginated posts - page: $page, size: $pageSize")
+            Timber.d("🔍 Time filter: $timeRange")
 
             var query: Query = firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
 
-            // Apply time filter
+            // ✅ FIXED: Apply time filter dengan Firebase Timestamp
             timeRange?.hoursAgo?.let { hours ->
                 val cutoffTime = System.currentTimeMillis() - (hours.toLong() * 60 * 60 * 1000L)
-                query = query.whereGreaterThan("createdAt", cutoffTime)
+                val cutoffTimestamp = Timestamp(Date(cutoffTime))
+
+                Timber.d("🕒 Time filter: ${timeRange.displayName} ($hours hours ago)")
+                Timber.d("🕒 Cutoff time: ${Date(cutoffTime)}")
+                Timber.d("🕒 Cutoff timestamp: $cutoffTimestamp")
+
+                query = query.whereGreaterThan("createdAt", cutoffTimestamp)
             }
 
             // Apply chaos level filter
             chaosLevelRange?.let { range ->
+                Timber.d("🎲 Chaos level filter: ${range.first}-${range.last}")
                 query = query.whereGreaterThanOrEqualTo("chaosLevel", range.first.toLong())
                     .whereLessThanOrEqualTo("chaosLevel", range.last.toLong())
             }
 
             // Apply tags filter
             if (!tags.isNullOrEmpty()) {
+                Timber.d("🏷️ Tags filter: $tags")
                 query = query.whereArrayContainsAny("tags", tags)
             }
 
@@ -71,9 +82,11 @@ class CommunityRepositoryPaginationImpl @Inject constructor(
                 else -> query = query.orderBy("createdAt", Query.Direction.DESCENDING)
             }
 
-            // Get total count estimate
+            // Get total count estimate for filtered query
             val totalSnapshot = query.limit(1000).get().await()
             val estimatedTotal = totalSnapshot.size()
+
+            Timber.d("📊 Total posts matching filters: $estimatedTotal")
 
             // Apply pagination using limit and skip simulation
             val itemsToSkip = (page - 1) * pageSize
@@ -82,7 +95,17 @@ class CommunityRepositoryPaginationImpl @Inject constructor(
             val snapshot = paginatedQuery.get().await()
             val allPosts = snapshot.documents.mapNotNull { doc ->
                 try {
-                    doc.data?.toCommunityPost()
+                    val post = doc.data?.toCommunityPost()
+
+                    // ✅ DEBUG: Log post dates for debugging
+                    if (post != null && timeRange?.hoursAgo != null) {
+                        val postData = doc.data
+                        val createdAtField = postData?.get("createdAt")
+                        Timber.d("📅 Post ${post.id}: createdAt field = $createdAtField (${createdAtField?.javaClass?.simpleName})")
+                        Timber.d("📅 Post ${post.id}: mapped createdAt = ${post.createdAt}")
+                    }
+
+                    post
                 } catch (e: Exception) {
                     Timber.e(e, "Error converting document ${doc.id}")
                     null
@@ -101,7 +124,16 @@ class CommunityRepositoryPaginationImpl @Inject constructor(
                 hasPrevious = page > 1
             )
 
-            Timber.d("✅ Loaded ${posts.size} posts for page $page")
+            Timber.d("✅ Loaded ${posts.size} posts for page $page (total available: $estimatedTotal)")
+
+            // ✅ DEBUG: Log hasil filter
+            if (timeRange != null) {
+                Timber.d("🔍 Time filter ${timeRange.displayName} returned ${posts.size} posts")
+                posts.take(3).forEach { post ->
+                    Timber.d("  - ${post.title} (${post.createdAt})")
+                }
+            }
+
             Result.success(response)
 
         } catch (e: Exception) {
@@ -212,8 +244,13 @@ class CommunityRepositoryPaginationImpl @Inject constructor(
                 minChaosLevel = minOf(minChaosLevel, chaosLevel)
                 maxChaosLevel = maxOf(maxChaosLevel, chaosLevel)
 
-                // Analyze date range
-                val timestamp = (data["createdAt"] as? com.google.firebase.Timestamp)?.toDate()?.time ?: System.currentTimeMillis()
+                // ✅ FIXED: Analyze date range dengan proper timestamp handling
+                val timestamp = when (val createdAt = data["createdAt"]) {
+                    is Timestamp -> createdAt.toDate().time
+                    is Date -> createdAt.time
+                    is Long -> createdAt
+                    else -> System.currentTimeMillis()
+                }
                 earliestTime = minOf(earliestTime, timestamp)
                 latestTime = maxOf(latestTime, timestamp)
             }
@@ -235,6 +272,8 @@ class CommunityRepositoryPaginationImpl @Inject constructor(
             metadataCacheTime = now
 
             Timber.d("✅ Loaded metadata: ${popularTags.size} tags, chaos range: $minChaosLevel-$maxChaosLevel")
+            Timber.d("📅 Date range: ${Date(earliestTime)} to ${Date(latestTime)}")
+
             Result.success(metadata)
 
         } catch (e: Exception) {
