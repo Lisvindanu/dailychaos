@@ -1,4 +1,5 @@
-// File: app/src/main/java/com/dailychaos/project/presentation/ui/screen/community/support/SupportUiState.kt
+
+// File: SupportUiState.kt - UPDATE
 package com.dailychaos.project.presentation.ui.screen.community.support
 
 import com.dailychaos.project.domain.model.SupportComment
@@ -28,7 +29,13 @@ data class SupportUiState(
 
     // UI state
     val showCommentDialog: Boolean = false,
-    val expandedCommentId: String? = null
+    val expandedCommentId: String? = null,
+
+    // ✅ NEW: Report dialog state
+    val showReportDialog: Boolean = false,
+    val selectedCommentToReport: String? = null,
+    val reportReason: String = "",
+    val showCommentMenu: String? = null // ID comment yang menampilkan menu
 )
 
 /**
@@ -57,4 +64,12 @@ sealed class SupportEvent {
 
     // Reply system (for future)
     data class ReplyToComment(val parentCommentId: String) : SupportEvent()
+
+    // ✅ NEW: Menu and report events
+    data class ShowCommentMenu(val commentId: String) : SupportEvent()
+    object HideCommentMenu : SupportEvent()
+    data class ShowReportDialog(val commentId: String) : SupportEvent()
+    object HideReportDialog : SupportEvent()
+    data class UpdateReportReason(val reason: String) : SupportEvent()
+    data class ConfirmReport(val commentId: String, val reason: String) : SupportEvent()
 }

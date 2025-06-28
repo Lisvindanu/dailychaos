@@ -57,8 +57,64 @@ class SupportViewModel @Inject constructor(
             is SupportEvent.ExpandComment -> expandComment(event.commentId)
             is SupportEvent.CollapseComment -> collapseComment(event.commentId)
             is SupportEvent.ReplyToComment -> replyToComment(event.parentCommentId)
+
+            // ✅ NEW: Menu and report events
+            is SupportEvent.ShowCommentMenu -> showCommentMenu(event.commentId)
+            is SupportEvent.HideCommentMenu -> hideCommentMenu()
+            is SupportEvent.ShowReportDialog -> showReportDialog(event.commentId)
+            is SupportEvent.HideReportDialog -> hideReportDialog()
+            is SupportEvent.UpdateReportReason -> updateReportReason(event.reason)
+            is SupportEvent.ConfirmReport -> confirmReport(event.commentId, event.reason)
         }
     }
+
+    // ============================================================================
+    // ✅ NEW: Menu and Report Dialog Methods
+    // ============================================================================
+
+    private fun showCommentMenu(commentId: String) {
+        _uiState.update { it.copy(showCommentMenu = commentId) }
+    }
+
+    private fun hideCommentMenu() {
+        _uiState.update { it.copy(showCommentMenu = null) }
+    }
+
+    private fun showReportDialog(commentId: String) {
+        _uiState.update {
+            it.copy(
+                showReportDialog = true,
+                selectedCommentToReport = commentId,
+                reportReason = "",
+                showCommentMenu = null // Hide menu when showing dialog
+            )
+        }
+    }
+
+    private fun hideReportDialog() {
+        _uiState.update {
+            it.copy(
+                showReportDialog = false,
+                selectedCommentToReport = null,
+                reportReason = ""
+            )
+        }
+    }
+
+    private fun updateReportReason(reason: String) {
+        _uiState.update { it.copy(reportReason = reason) }
+    }
+
+    private fun confirmReport(commentId: String, reason: String) {
+        if (reason.isNotEmpty()) {
+            reportComment(commentId, reason)
+            hideReportDialog()
+        }
+    }
+
+    // ============================================================================
+    // CORE METHODS
+    // ============================================================================
 
     private fun loadComments(isRefreshing: Boolean = false) {
         viewModelScope.launch {
@@ -222,6 +278,7 @@ class SupportViewModel @Inject constructor(
         }
     }
 
+    // ✅ FIXED: Single reportComment method only
     private fun reportComment(commentId: String, reason: String) {
         viewModelScope.launch {
             try {
@@ -233,19 +290,29 @@ class SupportViewModel @Inject constructor(
 
                 Timber.d("🚨 Reporting comment: $commentId, reason: $reason")
 
+                // Show loading state untuk report
+                _uiState.update { it.copy(isPostingComment = true) }
+
                 // ✅ REAL IMPLEMENTATION
                 val result = communityRepository.reportComment(commentId, currentUser.id, reason)
                 result.fold(
                     onSuccess = {
                         Timber.d("✅ Comment reported successfully")
                         _uiState.update {
-                            it.copy(error = null)
+                            it.copy(
+                                isPostingComment = false,
+                                error = null
+                            )
                         }
+                        // Success feedback could be added here
                     },
                     onFailure = { exception ->
                         Timber.e(exception, "❌ Failed to report comment")
                         _uiState.update {
-                            it.copy(error = "Failed to report comment: ${exception.message}")
+                            it.copy(
+                                isPostingComment = false,
+                                error = "Failed to report comment: ${exception.message}"
+                            )
                         }
                     }
                 )
@@ -253,7 +320,10 @@ class SupportViewModel @Inject constructor(
             } catch (e: Exception) {
                 Timber.e(e, "❌ Error reporting comment")
                 _uiState.update {
-                    it.copy(error = "Failed to report comment: ${e.message}")
+                    it.copy(
+                        isPostingComment = false,
+                        error = "Failed to report comment: ${e.message}"
+                    )
                 }
             }
         }
@@ -267,9 +337,29 @@ class SupportViewModel @Inject constructor(
         comments: List<SupportComment>,
         userId: String
     ): List<SupportComment> {
-        // For now, return comments as-is
-        // In production, you'd check which comments the user has liked
-        return comments
+        return try {
+            Timber.d("🔍 Checking like status for ${comments.size} comments for user: $userId")
+
+            // Ambil semua comment IDs
+            val commentIds = comments.map { it.id }
+
+            // Check like status dari repository
+            val likedCommentIds = communityRepository.getUserLikedComments(commentIds, userId)
+
+            // Update comments dengan like status yang benar
+            val updatedComments = comments.map { comment ->
+                val isLiked = likedCommentIds.contains(comment.id)
+                comment.copy(isLikedByCurrentUser = isLiked)
+            }
+
+            Timber.d("✅ Updated like status: ${likedCommentIds.size} liked out of ${comments.size}")
+            updatedComments
+
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error checking like status, using defaults")
+            // Jika error, return comments dengan isLikedByCurrentUser = false
+            comments.map { it.copy(isLikedByCurrentUser = false) }
+        }
     }
 
     private fun updateCommentLikeStatusOptimistically(commentId: String) {

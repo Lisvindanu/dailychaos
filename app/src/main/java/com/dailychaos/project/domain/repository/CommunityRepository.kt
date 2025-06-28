@@ -163,4 +163,8 @@ interface CommunityRepositoryExtended : CommunityRepository {
      * Get comment statistics for a post
      */
     suspend fun getCommentStats(postId: String): Result<Map<SupportType, Int>>
+
+    suspend fun getUserLikedComments(commentIds: List<String>, userId: String): List<String>
+
+
 }

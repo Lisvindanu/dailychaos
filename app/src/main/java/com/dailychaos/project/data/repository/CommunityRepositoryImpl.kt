@@ -263,6 +263,34 @@ class CommunityRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getUserLikedComments(commentIds: List<String>, userId: String): List<String> {
+        return try {
+            Timber.d("🔍 Getting liked comments for user: $userId, comments: $commentIds")
+
+            if (commentIds.isEmpty()) {
+                return emptyList()
+            }
+
+            // Query collection comment_likes untuk mendapatkan like status
+            val likedComments = firestore.collection("comment_likes")
+                .whereEqualTo("userId", userId)
+                .whereIn("commentId", commentIds)
+                .get()
+                .await()
+
+            val likedCommentIds = likedComments.documents.mapNotNull { doc ->
+                doc.getString("commentId")
+            }
+
+            Timber.d("✅ Found ${likedCommentIds.size} liked comments: $likedCommentIds")
+            likedCommentIds
+
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error getting user liked comments")
+            emptyList()
+        }
+    }
+
     override suspend fun removeSupport(postId: String, userId: String): Result<Unit> {
         return try {
             Timber.d("💔 ==================== REMOVING SUPPORT ====================")
