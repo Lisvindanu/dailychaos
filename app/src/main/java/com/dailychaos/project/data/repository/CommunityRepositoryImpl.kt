@@ -5,19 +5,25 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import com.dailychaos.project.data.mapper.toCommunityPost
 import com.dailychaos.project.data.mapper.toFirestoreMap
+import com.dailychaos.project.data.mapper.toSupportComment // ✅ FIXED: Add import
 import com.dailychaos.project.domain.model.CommunityPost
+import com.dailychaos.project.domain.model.SupportComment
+import com.dailychaos.project.domain.model.SupportCommentRequest
 import com.dailychaos.project.domain.model.SupportType
-import com.dailychaos.project.domain.repository.CommunityRepository
+import com.dailychaos.project.domain.repository.AuthRepository
 import com.dailychaos.project.domain.repository.CommunityRepositoryExtended
 import com.dailychaos.project.util.Constants
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
+import kotlinx.datetime.Clock
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -29,22 +35,22 @@ import javax.inject.Singleton
 @RequiresApi(Build.VERSION_CODES.O)
 @Singleton
 class CommunityRepositoryImpl @Inject constructor(
-    private val firestore: FirebaseFirestore
+    private val firestore: FirebaseFirestore,
+    private val authRepository: AuthRepository
 ) : CommunityRepositoryExtended {
 
     companion object {
         private const val COLLECTION_SUPPORT_REACTIONS = "support_reactions"
         private const val COLLECTION_USERS = "users"
         private const val COLLECTION_REPORTS = "reports"
+        private const val COLLECTION_COMMENTS = "support_comments"
+        private const val COLLECTION_COMMENT_LIKES = "comment_likes"
     }
 
     // ============================================================================
-    // ENHANCED SUPPORT OPERATIONS - NEW VERSION WITH TYPE CHANGE SUPPORT
+    // ENHANCED SUPPORT OPERATIONS
     // ============================================================================
 
-    /**
-     * Enhanced give support - bisa ganti tipe support kalau udah kasih support sebelumnya
-     */
     override suspend fun giveSupport(postId: String, userId: String, supportType: SupportType): Result<Unit> {
         return try {
             Timber.d("💙 ==================== GIVING SUPPORT ENHANCED ====================")
@@ -63,7 +69,7 @@ class CommunityRepositoryImpl @Inject constructor(
             }
 
             // Cek apakah post masih ada
-            val postSnapshot = firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
+            val postSnapshot = firestore.collection(Constants.COLLECTION_COMMUNITY_FEED)
                 .document(postId)
                 .get()
                 .await()
@@ -88,8 +94,7 @@ class CommunityRepositoryImpl @Inject constructor(
                 Timber.d("🔄 User already gave support. Existing type: $existingSupportType, New type: ${supportType.name}")
 
                 if (existingSupportType == supportType.name) {
-                    // ✅ CRITICAL FIX: Same support type = TOGGLE SUPPORT (remove it)
-                    // Let ViewModel handle the confirmation dialog, but Repository removes the support
+                    // Same support type = TOGGLE SUPPORT (remove it)
                     Timber.d("🔄 Same support type detected - removing existing support (toggle behavior)")
                     return removeSupport(postId, userId)
                 } else {
@@ -110,13 +115,13 @@ class CommunityRepositoryImpl @Inject constructor(
                         "postId" to postId,
                         "userId" to userId,
                         "supportType" to supportType.name,
-                        "createdAt" to com.google.firebase.Timestamp.now()
+                        "createdAt" to Timestamp.now()
                     )
                     val supportRef = firestore.collection(COLLECTION_SUPPORT_REACTIONS).document()
                     transaction.set(supportRef, supportReaction)
 
                     // 2. Increment support count on post
-                    val postRef = firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS).document(postId)
+                    val postRef = firestore.collection(Constants.COLLECTION_COMMUNITY_FEED).document(postId)
                     transaction.update(postRef, "supportCount", com.google.firebase.firestore.FieldValue.increment(1))
 
                     // 3. Update user profile dengan error handling
@@ -126,17 +131,16 @@ class CommunityRepositoryImpl @Inject constructor(
                             "supportGiven" to com.google.firebase.firestore.FieldValue.increment(1),
                             "totalSupportsGiven" to com.google.firebase.firestore.FieldValue.increment(1),
                             "totalSupportGiven" to com.google.firebase.firestore.FieldValue.increment(1),
-                            "lastActiveAt" to com.google.firebase.Timestamp.now()
+                            "lastActiveAt" to Timestamp.now()
                         )
                         transaction.update(userRef, userUpdates)
                         Timber.d("✅ User profile updated in transaction")
                     } catch (userError: Exception) {
                         Timber.w(userError, "⚠️ Failed to update user profile, but continuing with support operation")
-                        // Don't fail the whole transaction for user profile update
                     }
 
                     Timber.d("✅ Support transaction completed successfully")
-                    null // Return null for successful transaction
+                    null
                 } catch (e: Exception) {
                     Timber.e(e, "❌ Transaction failed")
                     throw e
@@ -150,7 +154,6 @@ class CommunityRepositoryImpl @Inject constructor(
             Timber.e(e, "❌ Firestore error giving support to post: $postId")
             when (e.code) {
                 FirebaseFirestoreException.Code.PERMISSION_DENIED -> {
-                    Timber.e("🔒 Permission denied - check Firestore security rules")
                     Result.failure(Exception("Permission denied. Please check your access rights.", e))
                 }
                 FirebaseFirestoreException.Code.NOT_FOUND -> {
@@ -169,14 +172,6 @@ class CommunityRepositoryImpl @Inject constructor(
         }
     }
 
-// ============================================================================
-// 📝 ADDITIONAL HELPER METHOD untuk ViewModel
-// ============================================================================
-
-    /**
-     * 🚨 NEW METHOD: Check if giving same support type (for ViewModel confirmation logic)
-     * Returns true if user is trying to give the same support type they already gave
-     */
     override suspend fun isSameSupportType(postId: String, userId: String, supportType: SupportType): Boolean {
         return try {
             val existingSupportQuery = firestore.collection(COLLECTION_SUPPORT_REACTIONS)
@@ -198,9 +193,6 @@ class CommunityRepositoryImpl @Inject constructor(
         }
     }
 
-    /**
-     * Change support type - internal function untuk ganti tipe support yang udah ada
-     */
     private suspend fun changeSupportType(
         postId: String,
         userId: String,
@@ -216,7 +208,7 @@ class CommunityRepositoryImpl @Inject constructor(
                 .document(existingSupportDocId)
                 .update(mapOf(
                     "supportType" to newSupportType.name,
-                    "updatedAt" to com.google.firebase.Timestamp.now()
+                    "updatedAt" to Timestamp.now()
                 ))
                 .await()
 
@@ -224,7 +216,7 @@ class CommunityRepositoryImpl @Inject constructor(
             try {
                 firestore.collection(COLLECTION_USERS)
                     .document(userId)
-                    .update("lastActiveAt", com.google.firebase.Timestamp.now())
+                    .update("lastActiveAt", Timestamp.now())
                     .await()
             } catch (userError: Exception) {
                 Timber.w(userError, "⚠️ Failed to update user last active time")
@@ -239,10 +231,6 @@ class CommunityRepositoryImpl @Inject constructor(
         }
     }
 
-    /**
-     * Check if user has given support to a post
-     * Returns the support type if found, null otherwise
-     */
     override suspend fun getUserSupportType(postId: String, userId: String): SupportType? {
         return try {
             Timber.d("🔍 Checking user support for post: $postId, user: $userId")
@@ -306,7 +294,7 @@ class CommunityRepositoryImpl @Inject constructor(
                     transaction.delete(supportDoc.reference)
 
                     // Decrement support count on post
-                    val postRef = firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS).document(postId)
+                    val postRef = firestore.collection(Constants.COLLECTION_COMMUNITY_FEED).document(postId)
                     transaction.update(postRef, "supportCount", com.google.firebase.firestore.FieldValue.increment(-1))
 
                     // Update user profile
@@ -316,7 +304,7 @@ class CommunityRepositoryImpl @Inject constructor(
                             "supportGiven" to com.google.firebase.firestore.FieldValue.increment(-1),
                             "totalSupportsGiven" to com.google.firebase.firestore.FieldValue.increment(-1),
                             "totalSupportGiven" to com.google.firebase.firestore.FieldValue.increment(-1),
-                            "lastActiveAt" to com.google.firebase.Timestamp.now()
+                            "lastActiveAt" to Timestamp.now()
                         )
                         transaction.update(userRef, userUpdates)
                     } catch (userError: Exception) {
@@ -333,16 +321,6 @@ class CommunityRepositoryImpl @Inject constructor(
             Timber.d("✅ Support removed successfully")
             Result.success(Unit)
 
-        } catch (e: FirebaseFirestoreException) {
-            Timber.e(e, "❌ Firestore error removing support from post: $postId")
-            when (e.code) {
-                FirebaseFirestoreException.Code.PERMISSION_DENIED -> {
-                    Result.failure(Exception("Permission denied. Please check your access rights.", e))
-                }
-                else -> {
-                    Result.failure(Exception("Failed to remove support: ${e.message}", e))
-                }
-            }
         } catch (e: Exception) {
             Timber.e(e, "❌ Unexpected error removing support from post: $postId")
             Result.failure(Exception("Unexpected error occurred. Please try again.", e))
@@ -350,93 +328,75 @@ class CommunityRepositoryImpl @Inject constructor(
     }
 
     // ============================================================================
-    // COMMUNITY FEED OPERATIONS - Keep existing implementation
+    // COMMUNITY FEED OPERATIONS
     // ============================================================================
 
     override fun getAllCommunityPosts(): Flow<List<CommunityPost>> {
-        Timber.d("🌍 Getting all community posts from collection: ${Constants.COLLECTION_COMMUNITY_POSTS}")
-        return firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
+        Timber.d("🌍 Getting all community posts from collection: ${Constants.COLLECTION_COMMUNITY_FEED}")
+        return firestore.collection(Constants.COLLECTION_COMMUNITY_FEED)
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .snapshots()
             .map { snapshot ->
                 Timber.d("📄 Retrieved ${snapshot.documents.size} documents from Firestore")
                 snapshot.documents.mapNotNull { doc ->
                     try {
-                        Timber.d("🔄 Processing document: ${doc.id}")
                         doc.data?.toCommunityPost()
                     } catch (e: Exception) {
                         Timber.e(e, "❌ Error converting document ${doc.id} to CommunityPost")
                         null
                     }
-                }.also { posts ->
-                    Timber.d("✅ Successfully converted ${posts.size} community posts")
                 }
             }
             .catch { exception ->
-                Timber.e(exception, "❌ Error getting community posts from ${Constants.COLLECTION_COMMUNITY_POSTS}")
+                Timber.e(exception, "❌ Error getting community posts")
                 emit(emptyList())
             }
     }
 
     override fun getRecentCommunityPosts(limit: Int): Flow<List<CommunityPost>> {
-        Timber.d("🌍 Getting recent $limit community posts from collection: ${Constants.COLLECTION_COMMUNITY_POSTS}")
-        return firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
+        return firestore.collection(Constants.COLLECTION_COMMUNITY_FEED)
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .limit(limit.toLong())
             .snapshots()
             .map { snapshot ->
-                Timber.d("📄 Retrieved ${snapshot.documents.size} recent documents from Firestore")
                 snapshot.documents.mapNotNull { doc ->
                     try {
-                        Timber.d("🔄 Processing recent document: ${doc.id}")
-                        Timber.d("📋 Document data keys: ${doc.data?.keys}")
                         doc.data?.toCommunityPost()
                     } catch (e: Exception) {
-                        Timber.e(e, "❌ Error converting recent document ${doc.id} to CommunityPost")
+                        Timber.e(e, "❌ Error converting document ${doc.id}")
                         null
                     }
-                }.also { posts ->
-                    Timber.d("✅ Successfully converted ${posts.size} recent community posts")
                 }
             }
             .catch { exception ->
-                Timber.e(exception, "❌ Error getting recent community posts from ${Constants.COLLECTION_COMMUNITY_POSTS}")
+                Timber.e(exception, "❌ Error getting recent community posts")
                 emit(emptyList())
             }
     }
 
     override fun getCommunityPostsByTags(tags: List<String>): Flow<List<CommunityPost>> {
-        Timber.d("🌍 Getting community posts by tags: $tags from collection: ${Constants.COLLECTION_COMMUNITY_POSTS}")
-        return firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
+        return firestore.collection(Constants.COLLECTION_COMMUNITY_FEED)
             .whereArrayContainsAny("tags", tags)
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .snapshots()
             .map { snapshot ->
-                Timber.d("📄 Retrieved ${snapshot.documents.size} documents with tags: $tags")
                 snapshot.documents.mapNotNull { doc ->
                     try {
                         doc.data?.toCommunityPost()
                     } catch (e: Exception) {
-                        Timber.e(e, "❌ Error converting document ${doc.id} to CommunityPost")
+                        Timber.e(e, "❌ Error converting document ${doc.id}")
                         null
                     }
-                }.also { posts ->
-                    Timber.d("✅ Successfully converted ${posts.size} community posts with tags")
                 }
             }
             .catch { exception ->
-                Timber.e(exception, "❌ Error getting community posts by tags from ${Constants.COLLECTION_COMMUNITY_POSTS}")
+                Timber.e(exception, "❌ Error getting community posts by tags")
                 emit(emptyList())
             }
     }
 
-    // ============================================================================
-    // INDIVIDUAL POST OPERATIONS - Keep existing implementation
-    // ============================================================================
-
     override fun getCommunityPost(postId: String): Flow<CommunityPost?> {
-        Timber.d("🌍 Getting community post: $postId from collection: ${Constants.COLLECTION_COMMUNITY_POSTS}")
-        return firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
+        return firestore.collection(Constants.COLLECTION_COMMUNITY_FEED)
             .document(postId)
             .snapshots()
             .map { snapshot ->
@@ -448,118 +408,62 @@ class CommunityRepositoryImpl @Inject constructor(
                         null
                     }
                 } else {
-                    Timber.w("Community post not found: $postId")
                     null
                 }
             }
             .catch { exception ->
-                Timber.e(exception, "❌ Error getting community post: $postId from ${Constants.COLLECTION_COMMUNITY_POSTS}")
+                Timber.e(exception, "❌ Error getting community post: $postId")
                 emit(null)
             }
     }
 
     override suspend fun createCommunityPost(post: CommunityPost): Result<String> {
         return try {
-            Timber.d("🌍 ==================== CREATING COMMUNITY POST ====================")
-            Timber.d("🌍 Creating community post in collection: ${Constants.COLLECTION_COMMUNITY_POSTS}")
-
             val postMap = post.toFirestoreMap().toMutableMap()
-            val documentRef = firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS).document()
+            val documentRef = firestore.collection(Constants.COLLECTION_COMMUNITY_FEED).document()
             postMap["id"] = documentRef.id
 
             documentRef.set(postMap).await()
-
-            Timber.d("✅ Community post created successfully with ID: ${documentRef.id}")
             Result.success(documentRef.id)
-
-        } catch (e: FirebaseFirestoreException) {
-            Timber.e(e, "❌ Firestore error creating community post")
-            when (e.code) {
-                FirebaseFirestoreException.Code.PERMISSION_DENIED -> {
-                    Result.failure(Exception("Permission denied. Cannot create post.", e))
-                }
-                else -> {
-                    Result.failure(Exception("Failed to create post: ${e.message}", e))
-                }
-            }
         } catch (e: Exception) {
-            Timber.e(e, "❌ Unexpected error creating community post")
+            Timber.e(e, "❌ Error creating community post")
             Result.failure(e)
         }
     }
 
     override suspend fun updateCommunityPost(postId: String, updates: Map<String, Any>): Result<Unit> {
         return try {
-            Timber.d("🌍 Updating community post: $postId")
-
-            firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
+            firestore.collection(Constants.COLLECTION_COMMUNITY_FEED)
                 .document(postId)
                 .update(updates)
                 .await()
-
-            Timber.d("✅ Community post updated successfully: $postId")
             Result.success(Unit)
-
-        } catch (e: FirebaseFirestoreException) {
-            Timber.e(e, "❌ Firestore error updating community post: $postId")
-            when (e.code) {
-                FirebaseFirestoreException.Code.PERMISSION_DENIED -> {
-                    Result.failure(Exception("Permission denied. Cannot update post.", e))
-                }
-                FirebaseFirestoreException.Code.NOT_FOUND -> {
-                    Result.failure(Exception("Post not found.", e))
-                }
-                else -> {
-                    Result.failure(Exception("Failed to update post: ${e.message}", e))
-                }
-            }
         } catch (e: Exception) {
-            Timber.e(e, "❌ Unexpected error updating community post: $postId")
+            Timber.e(e, "❌ Error updating community post: $postId")
             Result.failure(e)
         }
     }
 
     override suspend fun deleteCommunityPost(postId: String): Result<Unit> {
         return try {
-            Timber.d("🌍 Deleting community post: $postId")
-
-            firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
+            firestore.collection(Constants.COLLECTION_COMMUNITY_FEED)
                 .document(postId)
                 .delete()
                 .await()
-
-            Timber.d("✅ Community post deleted successfully: $postId")
             Result.success(Unit)
-
-        } catch (e: FirebaseFirestoreException) {
-            Timber.e(e, "❌ Firestore error deleting community post: $postId")
-            when (e.code) {
-                FirebaseFirestoreException.Code.PERMISSION_DENIED -> {
-                    Result.failure(Exception("Permission denied. Cannot delete post.", e))
-                }
-                else -> {
-                    Result.failure(Exception("Failed to delete post: ${e.message}", e))
-                }
-            }
         } catch (e: Exception) {
-            Timber.e(e, "❌ Unexpected error deleting community post: $postId")
+            Timber.e(e, "❌ Error deleting community post: $postId")
             Result.failure(e)
         }
     }
 
-    // ============================================================================
-    // REPORT OPERATIONS
-    // ============================================================================
-
     override suspend fun reportPost(postId: String, userId: String, reason: String): Result<Unit> {
         return try {
-            Timber.d("🚨 Reporting post: $postId (reason: $reason)")
-
             val reportData = mapOf(
                 "postId" to postId,
                 "reportedBy" to userId,
                 "reason" to reason,
-                "createdAt" to com.google.firebase.Timestamp.now(),
+                "createdAt" to Timestamp.now(),
                 "status" to "pending"
             )
 
@@ -567,32 +471,15 @@ class CommunityRepositoryImpl @Inject constructor(
                 .add(reportData)
                 .await()
 
-            Timber.d("✅ Post reported successfully")
             Result.success(Unit)
-
-        } catch (e: FirebaseFirestoreException) {
-            Timber.e(e, "❌ Firestore error reporting post: $postId")
-            when (e.code) {
-                FirebaseFirestoreException.Code.PERMISSION_DENIED -> {
-                    Result.failure(Exception("Permission denied. Cannot report post.", e))
-                }
-                else -> {
-                    Result.failure(Exception("Failed to report post: ${e.message}", e))
-                }
-            }
         } catch (e: Exception) {
-            Timber.e(e, "❌ Unexpected error reporting post: $postId")
+            Timber.e(e, "❌ Error reporting post: $postId")
             Result.failure(e)
         }
     }
 
-    // ============================================================================
-    // CHAOS TWINS OPERATIONS
-    // ============================================================================
-
     override fun findChaosTwins(userId: String, tags: List<String>, chaosLevel: Int): Flow<List<CommunityPost>> {
-        Timber.d("🔍 Finding chaos twins for user: $userId, tags: $tags, chaosLevel: $chaosLevel")
-        return firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
+        return firestore.collection(Constants.COLLECTION_COMMUNITY_FEED)
             .whereArrayContainsAny("tags", tags)
             .whereEqualTo("chaosLevel", chaosLevel)
             .orderBy("createdAt", Query.Direction.DESCENDING)
@@ -602,7 +489,6 @@ class CommunityRepositoryImpl @Inject constructor(
                 snapshot.documents.mapNotNull { doc ->
                     try {
                         val post = doc.data?.toCommunityPost()
-                        // Filter out user's own posts
                         if (post?.userId != userId) post else null
                     } catch (e: Exception) {
                         Timber.e(e, "❌ Error converting chaos twin document ${doc.id}")
@@ -616,15 +502,9 @@ class CommunityRepositoryImpl @Inject constructor(
             }
     }
 
-    // ============================================================================
-    // STATISTICS
-    // ============================================================================
-
     override suspend fun getCommunityStats(): Result<Map<String, Int>> {
         return try {
-            Timber.d("📊 Getting community statistics")
-
-            val postsSnapshot = firestore.collection(Constants.COLLECTION_COMMUNITY_POSTS)
+            val postsSnapshot = firestore.collection(Constants.COLLECTION_COMMUNITY_FEED)
                 .get()
                 .await()
 
@@ -637,12 +517,274 @@ class CommunityRepositoryImpl @Inject constructor(
                 "totalSupports" to supportSnapshot.size()
             )
 
-            Timber.d("✅ Community stats retrieved: $stats")
             Result.success(stats)
-
         } catch (e: Exception) {
             Timber.e(e, "❌ Error getting community statistics")
             Result.failure(e)
+        }
+    }
+
+    // ============================================================================
+    // COMMENT OPERATIONS
+    // ============================================================================
+
+    override fun getPostComments(postId: String): Flow<List<SupportComment>> {
+        return try {
+            Timber.d("💬 Loading comments for post: $postId")
+
+            firestore.collection(COLLECTION_COMMENTS)
+                .whereEqualTo("postId", postId)
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .snapshots()
+                .map { snapshot ->
+                    snapshot.documents.mapNotNull { document ->
+                        try {
+                            val data = document.data ?: return@mapNotNull null
+                            data.toSupportComment(document.id) // ✅ FIXED: Use mapper extension
+                        } catch (e: Exception) {
+                            Timber.e(e, "❌ Error parsing comment document: ${document.id}")
+                            null
+                        }
+                    }
+                }
+                .catch { exception ->
+                    Timber.e(exception, "❌ Error loading comments for post: $postId")
+                    emit(emptyList())
+                }
+        } catch (e: Exception) {
+            Timber.e(e, "💥 Unexpected error in getPostComments")
+            flowOf(emptyList())
+        }
+    }
+
+    override suspend fun postComment(commentRequest: SupportCommentRequest): Result<String> {
+        return try {
+            Timber.d("💬 ==================== POSTING COMMENT ====================")
+            Timber.d("💬 Comment request: $commentRequest")
+
+            // Validation
+            if (commentRequest.postId.isBlank()) {
+                return Result.failure(IllegalArgumentException("Post ID cannot be blank"))
+            }
+            if (commentRequest.content.isBlank()) {
+                return Result.failure(IllegalArgumentException("Comment content cannot be blank"))
+            }
+
+            val currentUserId = getCurrentUserId()
+                ?: return Result.failure(IllegalStateException("User not authenticated"))
+
+            // Get user info untuk anonymous username
+            val userDoc = firestore.collection(COLLECTION_USERS)
+                .document(currentUserId)
+                .get()
+                .await()
+
+            val username = userDoc.getString("username") ?: "Anonymous"
+            val anonymousUsername = if (commentRequest.isAnonymous) {
+                generateAnonymousUsername(username)
+            } else {
+                username
+            }
+
+            // Create comment document
+            val commentData = mapOf(
+                "postId" to commentRequest.postId,
+                "userId" to currentUserId,
+                "username" to username,
+                "anonymousUsername" to anonymousUsername,
+                "content" to commentRequest.content.trim(),
+                "supportType" to commentRequest.supportType.name,
+                "supportLevel" to commentRequest.supportLevel,
+                "isAnonymous" to commentRequest.isAnonymous,
+                "createdAt" to Timestamp.now(),
+                "updatedAt" to Timestamp.now(),
+                "likeCount" to 0,
+                "isReported" to false,
+                "isModerated" to false,
+                "parentCommentId" to commentRequest.parentCommentId,
+                "replyCount" to 0
+            )
+
+            // Add comment to firestore
+            val commentRef = firestore.collection(COLLECTION_COMMENTS)
+                .add(commentData)
+                .await()
+
+            Timber.d("✅ Comment posted successfully: ${commentRef.id}")
+
+            // Update post's comment count (optional)
+            updatePostCommentCount(commentRequest.postId, 1)
+
+            Result.success(commentRef.id)
+
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to post comment")
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun likeComment(commentId: String, userId: String): Result<Unit> {
+        return try {
+            Timber.d("👍 Toggling like for comment: $commentId")
+
+            val likeDocId = "${commentId}_${userId}"
+            val likeRef = firestore.collection(COLLECTION_COMMENT_LIKES).document(likeDocId)
+            val commentRef = firestore.collection(COLLECTION_COMMENTS).document(commentId)
+
+            firestore.runTransaction { transaction ->
+                val likeDoc = transaction.get(likeRef)
+                val commentDoc = transaction.get(commentRef)
+
+                val currentLikeCount = commentDoc.getLong("likeCount")?.toInt() ?: 0
+
+                if (likeDoc.exists()) {
+                    // Unlike - remove like
+                    transaction.delete(likeRef)
+                    transaction.update(commentRef, "likeCount", maxOf(0, currentLikeCount - 1))
+                    Timber.d("👎 Comment unliked")
+                } else {
+                    // Like - add like
+                    val likeData = mapOf(
+                        "commentId" to commentId,
+                        "userId" to userId,
+                        "createdAt" to Timestamp.now()
+                    )
+                    transaction.set(likeRef, likeData)
+                    transaction.update(commentRef, "likeCount", currentLikeCount + 1)
+                    Timber.d("👍 Comment liked")
+                }
+            }.await()
+
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to toggle comment like")
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun reportComment(commentId: String, userId: String, reason: String): Result<Unit> {
+        return try {
+            Timber.d("🚨 Reporting comment: $commentId, reason: $reason")
+
+            val reportData = mapOf(
+                "commentId" to commentId,
+                "reportedBy" to userId,
+                "reason" to reason,
+                "createdAt" to Timestamp.now(),
+                "status" to "pending"
+            )
+
+            firestore.collection("comment_reports")
+                .add(reportData)
+                .await()
+
+            Timber.d("✅ Comment reported successfully")
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to report comment")
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun deleteComment(commentId: String, userId: String): Result<Unit> {
+        return try {
+            Timber.d("🗑️ Deleting comment: $commentId")
+
+            // Check if user owns the comment
+            val commentDoc = firestore.collection(COLLECTION_COMMENTS)
+                .document(commentId)
+                .get()
+                .await()
+
+            val commentUserId = commentDoc.getString("userId")
+            if (commentUserId != userId) {
+                return Result.failure(SecurityException("You can only delete your own comments"))
+            }
+
+            // Get postId before deletion for updating count
+            val postId = commentDoc.getString("postId") ?: ""
+
+            // Delete comment
+            firestore.collection(COLLECTION_COMMENTS)
+                .document(commentId)
+                .delete()
+                .await()
+
+            // Update post comment count
+            if (postId.isNotBlank()) {
+                updatePostCommentCount(postId, -1)
+            }
+
+            Timber.d("✅ Comment deleted successfully")
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to delete comment")
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getCommentStats(postId: String): Result<Map<SupportType, Int>> {
+        return try {
+            Timber.d("📊 Getting comment stats for post: $postId")
+
+            val comments = firestore.collection(COLLECTION_COMMENTS)
+                .whereEqualTo("postId", postId)
+                .get()
+                .await()
+
+            val stats = comments.documents.groupBy { doc ->
+                val supportTypeStr = doc.getString("supportType") ?: "HEART"
+                try {
+                    SupportType.valueOf(supportTypeStr)
+                } catch (e: Exception) {
+                    SupportType.HEART
+                }
+            }.mapValues { it.value.size }
+
+            Timber.d("✅ Comment stats retrieved: $stats")
+            Result.success(stats)
+
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to get comment stats")
+            Result.failure(e)
+        }
+    }
+
+    // ============================================================================
+    // HELPER METHODS
+    // ============================================================================
+
+    private suspend fun updatePostCommentCount(postId: String, delta: Int) {
+        try {
+            val postRef = firestore.collection(Constants.COLLECTION_COMMUNITY_FEED)
+                .document(postId)
+
+            firestore.runTransaction { transaction ->
+                val postDoc = transaction.get(postRef)
+                val currentCount = postDoc.getLong("commentCount")?.toInt() ?: 0
+                val newCount = maxOf(0, currentCount + delta)
+                transaction.update(postRef, "commentCount", newCount)
+            }.await()
+
+        } catch (e: Exception) {
+            Timber.w(e, "⚠️ Failed to update post comment count")
+        }
+    }
+
+    private fun generateAnonymousUsername(originalUsername: String): String {
+        val random = (1000..9999).random()
+        return "${originalUsername}_$random"
+    }
+
+    private suspend fun getCurrentUserId(): String? {
+        return try {
+            authRepository.getCurrentUser()?.id
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error getting current user")
+            null
         }
     }
 }

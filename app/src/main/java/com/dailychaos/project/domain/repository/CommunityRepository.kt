@@ -2,6 +2,8 @@
 package com.dailychaos.project.domain.repository
 
 import com.dailychaos.project.domain.model.CommunityPost
+import com.dailychaos.project.domain.model.SupportComment
+import com.dailychaos.project.domain.model.SupportCommentRequest
 import com.dailychaos.project.domain.model.SupportType
 import kotlinx.coroutines.flow.Flow
 
@@ -127,4 +129,38 @@ interface CommunityRepositoryExtended : CommunityRepository {
      * Report a community post
      */
     override suspend fun reportPost(postId: String, userId: String, reason: String): Result<Unit>
+
+    // ============================================================================
+    // COMMENT OPERATIONS - NEW
+    // ============================================================================
+
+    /**
+     * Get comments for a specific post
+     */
+    fun getPostComments(postId: String): Flow<List<SupportComment>>
+
+    /**
+     * Post a new comment
+     */
+    suspend fun postComment(commentRequest: SupportCommentRequest): Result<String>
+
+    /**
+     * Like/unlike a comment
+     */
+    suspend fun likeComment(commentId: String, userId: String): Result<Unit>
+
+    /**
+     * Report a comment
+     */
+    suspend fun reportComment(commentId: String, userId: String, reason: String): Result<Unit>
+
+    /**
+     * Delete a comment (only owner or admin)
+     */
+    suspend fun deleteComment(commentId: String, userId: String): Result<Unit>
+
+    /**
+     * Get comment statistics for a post
+     */
+    suspend fun getCommentStats(postId: String): Result<Map<SupportType, Int>>
 }

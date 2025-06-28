@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -20,7 +18,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dailychaos.project.BuildConfig
 import com.dailychaos.project.data.remote.api.KonoSubaApiService
 import com.dailychaos.project.domain.model.User
 import com.dailychaos.project.presentation.ui.component.ChaosEntryCard
@@ -28,7 +25,6 @@ import com.dailychaos.project.presentation.ui.component.EmptyState
 import com.dailychaos.project.presentation.ui.component.ErrorMessage
 import com.dailychaos.project.presentation.ui.component.KonoSubaQuote
 import com.dailychaos.project.presentation.ui.component.LoadingIndicator
-import com.dailychaos.project.presentation.ui.component.TestLauncher
 import timber.log.Timber
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -39,14 +35,13 @@ fun HomeScreen(
     onNavigateToHistory: () -> Unit = {},
     onNavigateToCommunity: () -> Unit = {},
     onNavigateToEntry: (String) -> Unit = {},
-    onNavigateToTest: () -> Unit = {}, // ADD THIS: Test navigation
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
     konoSubaApiService: KonoSubaApiService? = null
 ) {
 
     LaunchedEffect(Unit) {
-        Timber.d("🏠 HomeScreen LOADED - FAB should be visible in bottom nav")
+        Timber.d("🏠 HomeScreen LOADED")
     }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -57,180 +52,90 @@ fun HomeScreen(
         }
     }
 
-    // WRAP WITH BOX for overlay components
-    Box(modifier = modifier.fillMaxSize()) {
-        PullToRefreshBox(
-            isRefreshing = uiState.isRefreshing,
-            onRefresh = { viewModel.onEvent(HomeUiEvent.Refresh) },
-            modifier = Modifier.fillMaxSize()
+    PullToRefreshBox(
+        isRefreshing = uiState.isRefreshing,
+        onRefresh = { viewModel.onEvent(HomeUiEvent.Refresh) },
+        modifier = modifier.fillMaxSize()
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(vertical = 16.dp)
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(vertical = 16.dp)
-            ) {
+            item {
+                WelcomeHeaderWithStats(
+                    user = uiState.user,
+                    todayStats = uiState.todayStats,
+                    isStatsLoading = uiState.isUserLoading
+                )
+            }
+
+            uiState.dailyQuote?.let { quote ->
                 item {
-                    WelcomeHeaderWithStats(
-                        user = uiState.user,
-                        todayStats = uiState.todayStats,
-                        isStatsLoading = uiState.isUserLoading
+                    KonoSubaQuote(
+                        quote = quote.text,
+                        character = quote.character.displayName,
+                        apiService = konoSubaApiService,
+                        onRefreshQuote = { viewModel.onEvent(HomeUiEvent.RefreshQuote) },
+                        onNextQuote = { viewModel.onEvent(HomeUiEvent.NextQuote) },
+                        showRefreshButton = true
                     )
                 }
+            }
 
-                // ADD THIS: Debug features section (only in DEBUG build)
-                if (BuildConfig.DEBUG) {
-                    item {
-                        DebugFeaturesSection(
-                            onNavigateToTest = onNavigateToTest
-                        )
+            item {
+                AchievementSection(
+                    achievements = uiState.achievements,
+                    currentStreak = uiState.currentStreak,
+                    isLoading = uiState.isAchievementsLoading
+                )
+            }
+
+            item {
+                RecentChaosSection(
+                    recentEntries = uiState.recentEntries,
+                    isLoading = uiState.isEntriesLoading,
+                    error = uiState.entriesError,
+                    onEntryClick = { entryId ->
+                        viewModel.onEvent(HomeUiEvent.NavigateToEntry(entryId))
+                        onNavigateToEntry(entryId)
+                    },
+                    onViewAll = {
+                        viewModel.onEvent(HomeUiEvent.NavigateToHistory)
+                        onNavigateToHistory()
+                    },
+                    onRetry = { viewModel.onEvent(HomeUiEvent.RetryLoadingEntries) },
+                    onCreateFirst = {
+                        viewModel.onEvent(HomeUiEvent.NavigateToCreateChaos)
+                        onNavigateToCreateChaos()
                     }
-                }
+                )
+            }
 
-                uiState.dailyQuote?.let { quote ->
-                    item {
-                        KonoSubaQuote(
-                            quote = quote.text,
-                            character = quote.character.displayName,
-                            apiService = konoSubaApiService,
-                            onRefreshQuote = { viewModel.onEvent(HomeUiEvent.RefreshQuote) },
-                            onNextQuote = { viewModel.onEvent(HomeUiEvent.NextQuote) },
-                            showRefreshButton = true
-                        )
-                    }
-                }
-
+            uiState.communityHighlight?.let { highlight ->
                 item {
-                    AchievementSection(
-                        achievements = uiState.achievements,
-                        currentStreak = uiState.currentStreak,
-                        isLoading = uiState.isAchievementsLoading
-                    )
-                }
-
-                item {
-                    RecentChaosSection(
-                        recentEntries = uiState.recentEntries,
-                        isLoading = uiState.isEntriesLoading,
-                        error = uiState.entriesError,
-                        onEntryClick = { entryId ->
-                            viewModel.onEvent(HomeUiEvent.NavigateToEntry(entryId))
-                            onNavigateToEntry(entryId)
-                        },
-                        onViewAll = {
-                            viewModel.onEvent(HomeUiEvent.NavigateToHistory)
-                            onNavigateToHistory()
-                        },
-                        onRetry = { viewModel.onEvent(HomeUiEvent.RetryLoadingEntries) },
-                        onCreateFirst = {
-                            viewModel.onEvent(HomeUiEvent.NavigateToCreateChaos)
-                            onNavigateToCreateChaos()
+                    CommunityHighlightsSection(
+                        highlight = highlight,
+                        isLoading = uiState.isCommunityLoading,
+                        onViewCommunity = {
+                            viewModel.onEvent(HomeUiEvent.NavigateToCommunity)
+                            onNavigateToCommunity()
                         }
                     )
                 }
-
-                uiState.communityHighlight?.let { highlight ->
-                    item {
-                        CommunityHighlightsSection(
-                            highlight = highlight,
-                            isLoading = uiState.isCommunityLoading,
-                            onViewCommunity = {
-                                viewModel.onEvent(HomeUiEvent.NavigateToCommunity)
-                                onNavigateToCommunity()
-                            }
-                        )
-                    }
-                }
-            }
-
-            if (uiState.hasError && !uiState.isLoading) {
-                ErrorMessage(
-                    message = uiState.errorMessage ?: "Something went wrong",
-                    onRetryClick = { viewModel.onEvent(HomeUiEvent.ClearError) },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp)
-                )
             }
         }
 
-        // ADD THIS: Test Launcher FAB (only in DEBUG build)
-        TestLauncher(
-            onNavigateToTest = onNavigateToTest,
-            modifier = Modifier.align(Alignment.BottomEnd)
-        )
-    }
-}
-
-// ADD THIS: Debug Features Section
-@Composable
-private fun DebugFeaturesSection(
-    onNavigateToTest: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.BugReport,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "DEBUG FEATURES",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Testing tools untuk development",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+        if (uiState.hasError && !uiState.isLoading) {
+            ErrorMessage(
+                message = uiState.errorMessage ?: "Something went wrong",
+                onRetryClick = { viewModel.onEvent(HomeUiEvent.ClearError) },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
             )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = onNavigateToTest,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary
-                    ),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        Icons.Default.BugReport,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Test Pagination", fontSize = 12.sp)
-                }
-
-                OutlinedButton(
-                    onClick = { /* Add more test features here */ },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("More Tests", fontSize = 12.sp)
-                }
-            }
         }
     }
 }

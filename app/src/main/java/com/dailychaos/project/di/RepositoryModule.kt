@@ -8,12 +8,10 @@ import com.dailychaos.project.data.remote.firebase.FirebaseFirestoreService
 import com.dailychaos.project.data.repository.AuthRepositoryImpl
 import com.dailychaos.project.data.repository.ChaosRepositoryImpl
 import com.dailychaos.project.data.repository.CommunityRepositoryImpl
-import com.dailychaos.project.data.repository.CommunityRepositoryPaginationImpl
 import com.dailychaos.project.domain.repository.AuthRepository
 import com.dailychaos.project.domain.repository.ChaosRepository
 import com.dailychaos.project.domain.repository.CommunityRepository
 import com.dailychaos.project.domain.repository.CommunityRepositoryExtended
-import com.dailychaos.project.domain.repository.CommunityRepositoryPagination
 import com.dailychaos.project.preferences.UserPreferences
 import com.dailychaos.project.util.ValidationUtil
 import com.google.firebase.firestore.FirebaseFirestore
@@ -45,32 +43,34 @@ object RepositoryModule {
     @Singleton
     fun provideChaosRepository(
         firestoreService: FirebaseFirestoreService,
-        authService: FirebaseAuthService // Diperlukan di ChaosRepositoryImpl
+        authService: FirebaseAuthService
     ): ChaosRepository {
         return ChaosRepositoryImpl(firestoreService, authService)
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    @Provides
-    @Singleton
-    fun provideCommunityRepository(
-        firestore: FirebaseFirestore
-    ): CommunityRepository {
-        return CommunityRepositoryImpl(firestore)
-    }
-
     /**
-     * Provide extended CommunityRepository implementation
-     * Menggunakan @Provides karena kita perlu cast dari instance yang sama
+     * ✅ FIXED: Provide CommunityRepositoryExtended with proper AuthRepository dependency
      */
     @RequiresApi(Build.VERSION_CODES.O)
     @Provides
     @Singleton
     fun provideCommunityRepositoryExtended(
-        firestore: FirebaseFirestore
+        firestore: FirebaseFirestore,
+        authRepository: AuthRepository // ✅ FIXED: Add missing AuthRepository parameter
     ): CommunityRepositoryExtended {
-        return CommunityRepositoryImpl(firestore)
+        return CommunityRepositoryImpl(firestore, authRepository)
     }
 
+    /**
+     * ✅ FIXED: Provide base CommunityRepository that delegates to Extended implementation
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    @Provides
+    @Singleton
+    fun provideCommunityRepository(
+        communityRepositoryExtended: CommunityRepositoryExtended
+    ): CommunityRepository {
+        return communityRepositoryExtended
+    }
 
 }

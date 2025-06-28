@@ -2,9 +2,16 @@ package com.dailychaos.project.presentation.ui.screen.community.support
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -14,8 +21,17 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -26,6 +42,7 @@ import com.dailychaos.project.presentation.ui.component.LoadingIndicator
 import com.dailychaos.project.presentation.ui.component.ParchmentCard
 import com.dailychaos.project.presentation.ui.component.UserAvatar
 import com.dailychaos.project.util.timeAgo
+import kotlinx.coroutines.launch
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,6 +54,18 @@ fun SupportScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val listState = rememberLazyListState()
+    val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+
+    // ✅ Enhanced: Smooth scroll to top when new comment added
+    LaunchedEffect(uiState.comments.size) {
+        if (uiState.comments.isNotEmpty() && !uiState.isLoading) {
+            scope.launch {
+                listState.animateScrollToItem(0)
+            }
+        }
+    }
 
     LaunchedEffect(postId) {
         viewModel.initialize(postId)
@@ -44,70 +73,204 @@ fun SupportScreen(
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            snackbarHostState.showSnackbar(
+                message = error,
+                actionLabel = "Dismiss",
+                duration = SnackbarDuration.Long
+            )
             viewModel.onEvent(SupportEvent.ClearError)
         }
     }
 
-    if (uiState.showCommentDialog) {
-        CommentDialog(
+    // ✅ Enhanced: Animated comment dialog
+    AnimatedVisibility(
+        visible = uiState.showCommentDialog,
+        enter = fadeIn(animationSpec = tween(300)) + slideInVertically(
+            animationSpec = tween(300, easing = EaseOutCubic),
+            initialOffsetY = { it / 3 }
+        ),
+        exit = fadeOut(animationSpec = tween(200)) + slideOutVertically(
+            animationSpec = tween(200, easing = EaseInCubic),
+            targetOffsetY = { it / 3 }
+        )
+    ) {
+        EnhancedCommentDialog(
             commentText = uiState.commentText,
             selectedSupportType = uiState.selectedSupportType,
             selectedSupportLevel = uiState.selectedSupportLevel,
             isAnonymous = uiState.isAnonymous,
             isPosting = uiState.isPostingComment,
             onCommentTextChange = { viewModel.onEvent(SupportEvent.UpdateCommentText(it)) },
-            onSupportTypeSelect = { viewModel.onEvent(SupportEvent.SelectSupportType(it)) },
-            onSupportLevelSelect = { viewModel.onEvent(SupportEvent.SelectSupportLevel(it)) },
+            onSupportTypeSelect = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                viewModel.onEvent(SupportEvent.SelectSupportType(it))
+            },
+            onSupportLevelSelect = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                viewModel.onEvent(SupportEvent.SelectSupportLevel(it))
+            },
             onAnonymousToggle = { viewModel.onEvent(SupportEvent.ToggleAnonymous(it)) },
-            onPostComment = { viewModel.onEvent(SupportEvent.PostComment) },
+            onPostComment = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                viewModel.onEvent(SupportEvent.PostComment)
+            },
             onDismiss = { viewModel.onEvent(SupportEvent.HideCommentDialog) }
         )
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Support & Comments")
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                snackbar = { snackbarData ->
+                    // ✅ Enhanced: Custom snackbar with better design
+                    Card(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.inverseSurface,
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
                         Text(
-                            "${uiState.totalComments} messages of support",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = snackbarData.visuals.message,
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.inverseOnSurface,
+                            style = MaterialTheme.typography.bodyMedium
                         )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 }
             )
         },
+        topBar = {
+            // ✅ Enhanced: Better top bar with gradient
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(
+                            "💬 Support & Comments",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        AnimatedContent(
+                            targetState = uiState.totalComments,
+                            transitionSpec = {
+                                slideInVertically { it } + fadeIn() togetherWith
+                                        slideOutVertically { -it } + fadeOut()
+                            },
+                            label = "comment_count"
+                        ) { count ->
+                            Text(
+                                if (count == 0) "Be the first to show support! 🌟"
+                                else "$count messages of support from fellow adventurers",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
+                navigationIcon = {
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateBack()
+                        }
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                )
+            )
+        },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { viewModel.onEvent(SupportEvent.ShowCommentDialog) },
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(Icons.Default.Add, "Add Support Comment")
-            }
+            // ✅ Enhanced: Animated FAB with better interaction
+            val fabScale by animateFloatAsState(
+                targetValue = if (uiState.isPostingComment) 0.8f else 1f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                label = "fab_scale"
+            )
+
+            ExtendedFloatingActionButton(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    viewModel.onEvent(SupportEvent.ShowCommentDialog)
+                },
+                modifier = Modifier.scale(fabScale),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                text = {
+                    AnimatedContent(
+                        targetState = uiState.isPostingComment,
+                        transitionSpec = {
+                            slideInHorizontally { it } + fadeIn() togetherWith
+                                    slideOutHorizontally { -it } + fadeOut()
+                        },
+                        label = "fab_text"
+                    ) { isPosting ->
+                        if (isPosting) {
+                            Text("Sending...")
+                        } else {
+                            Text("Send Support")
+                        }
+                    }
+                },
+                icon = {
+                    AnimatedContent(
+                        targetState = uiState.isPostingComment,
+                        transitionSpec = {
+                            scaleIn() + fadeIn() togetherWith scaleOut() + fadeOut()
+                        },
+                        label = "fab_icon"
+                    ) { isPosting ->
+                        if (isPosting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Icon(Icons.Default.Add, "Add Support Comment")
+                        }
+                    }
+                }
+            )
         }
     ) { paddingValues ->
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
-            onRefresh = { viewModel.onEvent(SupportEvent.RefreshComments) },
+            onRefresh = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                viewModel.onEvent(SupportEvent.RefreshComments)
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
             when {
                 uiState.isLoading -> {
-                    LoadingIndicator(
-                        modifier = Modifier.align(Alignment.Center),
-                        message = "Loading support messages..."
-                    )
+                    // ✅ Enhanced: Better loading state with shimmer effect
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        LoadingIndicator(
+                            message = "Loading support messages..."
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            "Gathering messages from fellow adventurers...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
                 uiState.error != null && uiState.comments.isEmpty() -> {
                     ErrorMessage(
@@ -117,43 +280,73 @@ fun SupportScreen(
                     )
                 }
                 uiState.comments.isEmpty() -> {
-                    EmptyCommentsState(
+                    EnhancedEmptyCommentsState(
                         onAddComment = { viewModel.onEvent(SupportEvent.ShowCommentDialog) },
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
                 else -> {
                     LazyColumn(
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        state = listState,
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 100.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         item {
-                            SupportStatisticsCard(
-                                totalComments = uiState.totalComments,
-                                supportTypeBreakdown = uiState.supportTypeBreakdown
-                            )
+                            // ✅ Enhanced: Animated statistics card
+                            AnimatedVisibility(
+                                visible = true,
+                                enter = fadeIn(animationSpec = tween(600)) + slideInVertically(
+                                    animationSpec = tween(600, easing = EaseOutCubic),
+                                    initialOffsetY = { -it / 2 }
+                                )
+                            ) {
+                                EnhancedSupportStatisticsCard(
+                                    totalComments = uiState.totalComments,
+                                    supportTypeBreakdown = uiState.supportTypeBreakdown
+                                )
+                            }
                         }
 
-                        items(uiState.comments) { comment ->
-                            SupportCommentCard(
-                                comment = comment,
-                                isExpanded = uiState.expandedCommentId == comment.id,
-                                onExpandToggle = {
-                                    if (uiState.expandedCommentId == comment.id) {
-                                        viewModel.onEvent(SupportEvent.CollapseComment(comment.id))
-                                    } else {
-                                        viewModel.onEvent(SupportEvent.ExpandComment(comment.id))
+                        items(
+                            items = uiState.comments,
+                            key = { it.id }
+                        ) { comment ->
+                            // ✅ Enhanced: Animated comment cards
+                            AnimatedVisibility(
+                                visible = true,
+                                enter = fadeIn(
+                                    animationSpec = tween(durationMillis = 400, delayMillis = 100)
+                                ) + slideInVertically(
+                                    animationSpec = tween(400, easing = EaseOutCubic),
+                                    initialOffsetY = { it / 3 }
+                                )
+                            ) {
+                                EnhancedSupportCommentCard(
+                                    comment = comment,
+                                    isExpanded = uiState.expandedCommentId == comment.id,
+                                    onExpandToggle = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        if (uiState.expandedCommentId == comment.id) {
+                                            viewModel.onEvent(SupportEvent.CollapseComment(comment.id))
+                                        } else {
+                                            viewModel.onEvent(SupportEvent.ExpandComment(comment.id))
+                                        }
+                                    },
+                                    onLike = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        viewModel.onEvent(SupportEvent.LikeComment(comment.id))
+                                    },
+                                    onReport = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        viewModel.onEvent(SupportEvent.ReportComment(comment.id, "Inappropriate"))
+                                    },
+                                    onReply = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        viewModel.onEvent(SupportEvent.ReplyToComment(comment.id))
                                     }
-                                },
-                                onLike = { viewModel.onEvent(SupportEvent.LikeComment(comment.id)) },
-                                onReport = { viewModel.onEvent(SupportEvent.ReportComment(comment.id, "Inappropriate")) },
-                                onReply = { viewModel.onEvent(SupportEvent.ReplyToComment(comment.id)) }
-                            )
-                        }
-
-                        item {
-                            Spacer(modifier = Modifier.height(80.dp))
+                                )
+                            }
                         }
                     }
                 }
@@ -162,49 +355,117 @@ fun SupportScreen(
     }
 }
 
+// ✅ Enhanced: Premium statistics card with animations
 @Composable
-private fun SupportStatisticsCard(
+private fun EnhancedSupportStatisticsCard(
     totalComments: Int,
     supportTypeBreakdown: Map<SupportType, Int>
 ) {
-    ParchmentCard(
-        modifier = Modifier.fillMaxWidth()
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        ),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(20.dp)
         ) {
-            Text(
-                "💙 Community Support Overview",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+                                )
+                            ),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("💙", fontSize = 24.sp)
+                }
 
-            Text(
-                "$totalComments adventurers have shared their support",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Community Support",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    AnimatedContent(
+                        targetState = totalComments,
+                        transitionSpec = {
+                            slideInVertically { it } + fadeIn() togetherWith
+                                    slideOutVertically { -it } + fadeOut()
+                        },
+                        label = "total_comments"
+                    ) { count ->
+                        Text(
+                            if (count == 0) "No messages yet - be the first!"
+                            else "$count adventurers sharing their support",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
 
             if (supportTypeBreakdown.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(20.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     supportTypeBreakdown.forEach { (type, count) ->
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        AnimatedVisibility(
+                            visible = count > 0,
+                            enter = scaleIn(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn()
                         ) {
-                            Text(
-                                getSupportEmoji(type),
-                                fontSize = 20.sp
-                            )
-                            Text(
-                                count.toString(),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                                    )
+                                    .padding(12.dp)
+                            ) {
+                                Text(
+                                    getSupportEmoji(type),
+                                    fontSize = 24.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                AnimatedContent(
+                                    targetState = count,
+                                    transitionSpec = {
+                                        scaleIn() + fadeIn() togetherWith scaleOut() + fadeOut()
+                                    },
+                                    label = "support_count"
+                                ) { animatedCount ->
+                                    Text(
+                                        animatedCount.toString(),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Text(
+                                    getSupportText(type),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -213,8 +474,9 @@ private fun SupportStatisticsCard(
     }
 }
 
+// ✅ Enhanced: Premium comment card with smooth animations
 @Composable
-private fun SupportCommentCard(
+private fun EnhancedSupportCommentCard(
     comment: SupportComment,
     isExpanded: Boolean,
     onExpandToggle: () -> Unit,
@@ -222,142 +484,239 @@ private fun SupportCommentCard(
     onReport: () -> Unit,
     onReply: () -> Unit
 ) {
-    ParchmentCard(
-        modifier = Modifier.fillMaxWidth()
+    val haptic = LocalHapticFeedback.current
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessLow
+                )
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
+            // Header with user info and support type
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 UserAvatar(
                     username = comment.anonymousUsername,
-                    size = 32.dp
+                    size = 40.dp
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         comment.anonymousUsername,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Medium
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         comment.createdAt.timeAgo(),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                // Animated support type badge
+                AnimatedVisibility(
+                    visible = true,
+                    enter = scaleIn() + fadeIn()
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = getSupportTypeColor(comment.supportType).copy(alpha = 0.1f)
+                        ),
+                        shape = RoundedCornerShape(20.dp)
                     ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                getSupportEmoji(comment.supportType),
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                getSupportText(comment.supportType),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = getSupportTypeColor(comment.supportType),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Comment content with smooth expand/collapse
+            AnimatedContent(
+                targetState = isExpanded,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(300)) togetherWith
+                            fadeOut(animationSpec = tween(300))
+                },
+                label = "comment_content"
+            ) { expanded ->
+                Text(
+                    comment.content,
+                    style = MaterialTheme.typography.bodyLarge,
+                    lineHeight = 22.sp,
+                    maxLines = if (expanded) Int.MAX_VALUE else 3,
+                    overflow = if (!expanded) TextOverflow.Ellipsis else TextOverflow.Visible
+                )
+            }
+
+            // Show more/less button
+            if (comment.content.length > 150) {
+                TextButton(
+                    onClick = onExpandToggle,
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    AnimatedContent(
+                        targetState = isExpanded,
+                        transitionSpec = {
+                            slideInHorizontally { it } + fadeIn() togetherWith
+                                    slideOutHorizontally { -it } + fadeOut()
+                        },
+                        label = "expand_text"
+                    ) { expanded ->
                         Text(
-                            getSupportEmoji(comment.supportType),
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            getSupportText(comment.supportType),
-                            style = MaterialTheme.typography.labelSmall,
+                            if (expanded) "Show less" else "Show more",
+                            style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Text(
-                comment.content,
-                style = MaterialTheme.typography.bodyMedium,
-                lineHeight = 20.sp,
-                maxLines = if (isExpanded) Int.MAX_VALUE else 3
-            )
-
-            if (comment.content.length > 150) {
-                TextButton(
-                    onClick = onExpandToggle,
-                    contentPadding = PaddingValues(0.dp)
+            // Support level stars
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AnimatedVisibility(
+                    visible = true,
+                    enter = scaleIn(
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy
+                        ),
+                        initialScale = 0.8f
+                    ) + fadeIn()
                 ) {
-                    Text(
-                        if (isExpanded) "Show less" else "Show more",
-                        style = MaterialTheme.typography.labelSmall
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                getSupportLevelText(comment.supportLevel),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Action buttons with enhanced interaction
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Like button with animation
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
+                val likeScale by animateFloatAsState(
+                    targetValue = if (comment.isLikedByCurrentUser) 1.2f else 1f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                    label = "like_scale"
+                )
+
+                IconButton(
+                    onClick = onLike,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .scale(likeScale)
                 ) {
-                    IconButton(
-                        onClick = onLike,
-                        modifier = Modifier.size(32.dp)
-                    ) {
+                    AnimatedContent(
+                        targetState = comment.isLikedByCurrentUser,
+                        transitionSpec = {
+                            scaleIn() + fadeIn() togetherWith scaleOut() + fadeOut()
+                        },
+                        label = "like_icon"
+                    ) { isLiked ->
                         Icon(
-                            if (comment.isLikedByCurrentUser) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = "Like",
-                            tint = if (comment.isLikedByCurrentUser)
-                                MaterialTheme.colorScheme.error
+                            tint = if (isLiked)
+                                Color(0xFFE91E63)
                             else
                                 MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
+                }
 
-                    if (comment.likeCount > 0) {
+                if (comment.likeCount > 0) {
+                    AnimatedContent(
+                        targetState = comment.likeCount,
+                        transitionSpec = {
+                            slideInVertically { it } + fadeIn() togetherWith
+                                    slideOutVertically { -it } + fadeOut()
+                        },
+                        label = "like_count"
+                    ) { count ->
                         Text(
-                            comment.likeCount.toString(),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            count.toString(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
+            }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    repeat(comment.supportLevel) {
-                        Icon(
-                            Icons.Default.Star,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(12.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    IconButton(
-                        onClick = onReport,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.MoreVert,
-                            contentDescription = "More",
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
+            // More actions button
+            IconButton(
+                onClick = onReport,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    Icons.Default.MoreVert,
+                    contentDescription = "More",
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
 }
 
+
+// ✅ Enhanced: Premium empty state with better motivation
 @Composable
-private fun EmptyCommentsState(
+private fun EnhancedEmptyCommentsState(
     onAddComment: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -365,39 +724,76 @@ private fun EmptyCommentsState(
         modifier = modifier.padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Animated emoji
+        val infiniteTransition = rememberInfiniteTransition(label = "empty_animation")
+        val scale by infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2000, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "emoji_scale"
+        )
+
         Text(
             "💬",
-            fontSize = 64.sp,
-            textAlign = TextAlign.Center
+            fontSize = 72.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.scale(scale)
         )
-        Spacer(modifier = Modifier.height(16.dp))
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         Text(
             "No Support Messages Yet",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            "Be the first to send some support to this fellow adventurer!",
-            style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurface
         )
-        Spacer(modifier = Modifier.height(24.dp))
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            "Every adventurer needs support on their journey.\nBe the first to send some encouragement! 🌟",
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            lineHeight = 24.sp
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
         Button(
-            onClick = onAddComment
+            onClick = onAddComment,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary
+            )
         ) {
-            Icon(Icons.Default.Add, contentDescription = null)
+            Icon(
+                Icons.Default.Add,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Send Support")
+            Text(
+                "Send First Support Message",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
 
+// ✅ Enhanced: Premium comment dialog with better UX
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CommentDialog(
+private fun EnhancedCommentDialog(
     commentText: String,
     selectedSupportType: SupportType,
     selectedSupportLevel: Int,
@@ -410,13 +806,65 @@ private fun CommentDialog(
     onPostComment: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    val haptic = LocalHapticFeedback.current
+
+    BasicAlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text("Send Support Message")
-        },
-        text = {
-            Column {
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            shape = RoundedCornerShape(28.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp)
+            ) {
+                // Header with better styling
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+                                    )
+                                ),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("💝", fontSize = 24.sp)
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Send Support Message",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Share encouraging words with a fellow adventurer",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Enhanced text field with character counter
                 OutlinedTextField(
                     value = commentText,
                     onValueChange = onCommentTextChange,
@@ -424,17 +872,43 @@ private fun CommentDialog(
                     placeholder = { Text("Share some encouraging words...") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
-                    maxLines = 5
+                    maxLines = 5,
+                    shape = RoundedCornerShape(16.dp),
+                    supportingText = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "Express your support genuinely",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            AnimatedContent(
+                                targetState = commentText.length,
+                                label = "char_count"
+                            ) { count ->
+                                Text(
+                                    "$count/1000",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (count > 900) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
+                // Enhanced support type selection
                 Text(
                     "Choose Support Type:",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Medium
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 val supportTypes = SupportType.values().toList()
                 supportTypes.chunked(2).forEach { rowTypes ->
@@ -443,13 +917,40 @@ private fun CommentDialog(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         rowTypes.forEach { type ->
+                            val isSelected = selectedSupportType == type
+
                             FilterChip(
-                                selected = selectedSupportType == type,
-                                onClick = { onSupportTypeSelect(type) },
-                                label = {
-                                    Text("${getSupportEmoji(type)} ${getSupportText(type)}")
+                                selected = isSelected,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onSupportTypeSelect(type)
                                 },
-                                modifier = Modifier.weight(1f)
+                                label = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            getSupportEmoji(type),
+                                            fontSize = 16.sp
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            getSupportText(type),
+                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = getSupportTypeColor(type).copy(alpha = 0.2f),
+                                    selectedLabelColor = getSupportTypeColor(type)
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isSelected,
+                                    selectedBorderColor = getSupportTypeColor(type),
+                                    selectedBorderWidth = 2.dp
+                                )
                             )
                         }
                         if (rowTypes.size == 1) {
@@ -459,90 +960,193 @@ private fun CommentDialog(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
+                // Enhanced support intensity selection
                 Text(
                     "Support Intensity:",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Medium
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     repeat(5) { level ->
+                        val isSelected = level < selectedSupportLevel
+                        val levelScale by animateFloatAsState(
+                            targetValue = if (isSelected) 1.2f else 1f,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                            label = "star_scale"
+                        )
+
                         IconButton(
-                            onClick = { onSupportLevelSelect(level + 1) },
-                            modifier = Modifier.size(32.dp)
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onSupportLevelSelect(level + 1)
+                            },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .scale(levelScale)
                         ) {
                             Icon(
                                 Icons.Default.Star,
                                 contentDescription = "${level + 1} stars",
-                                tint = if (level < selectedSupportLevel)
+                                tint = if (isSelected)
                                     MaterialTheme.colorScheme.primary
                                 else
                                     MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        when (selectedSupportLevel) {
-                            1 -> "Gentle"
-                            2 -> "Warm"
-                            3 -> "Strong"
-                            4 -> "Powerful"
-                            5 -> "Maximum"
-                            else -> ""
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    AnimatedContent(
+                        targetState = selectedSupportLevel,
+                        transitionSpec = {
+                            slideInVertically { it } + fadeIn() togetherWith
+                                    slideOutVertically { -it } + fadeOut()
                         },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                        label = "intensity_text"
+                    ) { level ->
+                        Column {
+                            Text(
+                                getSupportLevelText(level),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                getSupportLevelDescription(level),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
+                // Enhanced anonymous toggle
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onAnonymousToggle(!isAnonymous) }
+                            .padding(16.dp)
+                    ) {
+                        Switch(
+                            checked = isAnonymous,
+                            onCheckedChange = onAnonymousToggle,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                "Post anonymously",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                if (isAnonymous) "Your identity will be hidden"
+                                else "Your username will be visible",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Enhanced action buttons
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Switch(
-                        checked = isAnonymous,
-                        onCheckedChange = onAnonymousToggle
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "Post anonymously",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            "Cancel",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                    }
+
+                    Button(
+                        onClick = onPostComment,
+                        enabled = commentText.isNotBlank() && !isPosting,
+                        modifier = Modifier.weight(2f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        AnimatedContent(
+                            targetState = isPosting,
+                            transitionSpec = {
+                                slideInHorizontally { it } + fadeIn() togetherWith
+                                        slideOutHorizontally { -it } + fadeOut()
+                            },
+                            label = "button_content"
+                        ) { posting ->
+                            if (posting) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        "Sending...",
+                                        style = MaterialTheme.typography.titleSmall
+                                    )
+                                }
+                            } else {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(getSupportEmoji(selectedSupportType))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        "Send Support",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onPostComment,
-                enabled = commentText.isNotBlank() && !isPosting
-            ) {
-                if (isPosting) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text("Send Support")
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
             }
         }
-    )
+    }
 }
+
+// ============================================================================
+// ✅ Enhanced: Helper functions with better theming
+// ============================================================================
 
 private fun getSupportEmoji(supportType: SupportType): String {
     return when (supportType) {
@@ -559,5 +1163,37 @@ private fun getSupportText(supportType: SupportType): String {
         SupportType.HUG -> "Hug"
         SupportType.STRENGTH -> "Strength"
         SupportType.HOPE -> "Hope"
+    }
+}
+
+@Composable
+private fun getSupportTypeColor(supportType: SupportType): Color {
+    return when (supportType) {
+        SupportType.HEART -> Color(0xFFE91E63)  // Pink
+        SupportType.HUG -> Color(0xFFFF9800)    // Orange
+        SupportType.STRENGTH -> Color(0xFF4CAF50) // Green
+        SupportType.HOPE -> Color(0xFFFFEB3B)   // Yellow
+    }
+}
+
+private fun getSupportLevelText(level: Int): String {
+    return when (level) {
+        1 -> "Gentle"
+        2 -> "Warm"
+        3 -> "Strong"
+        4 -> "Powerful"
+        5 -> "Maximum"
+        else -> "Unknown"
+    }
+}
+
+private fun getSupportLevelDescription(level: Int): String {
+    return when (level) {
+        1 -> "A gentle touch"
+        2 -> "Warm encouragement"
+        3 -> "Strong support"
+        4 -> "Powerful motivation"
+        5 -> "Maximum energy!"
+        else -> ""
     }
 }

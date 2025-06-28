@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.datetime.minus
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -73,49 +72,44 @@ class SupportViewModel @Inject constructor(
                     _uiState.update { it.copy(isRefreshing = true, error = null) }
                 }
 
-                // TODO: Implement in repository
-                // communityRepository.getPostComments(currentPostId)
-                //     .catch { exception ->
-                //         Timber.e(exception, "❌ Error loading comments")
-                //         _uiState.update {
-                //             it.copy(
-                //                 isLoading = false,
-                //                 isRefreshing = false,
-                //                 error = "Failed to load comments: ${exception.message}"
-                //             )
-                //         }
-                //     }
-                //     .collect { comments ->
-                //         val supportTypeBreakdown = comments.groupBy { it.supportType }
-                //             .mapValues { it.value.size }
-                //
-                //         _uiState.update {
-                //             it.copy(
-                //                 comments = comments,
-                //                 totalComments = comments.size,
-                //                 supportTypeBreakdown = supportTypeBreakdown,
-                //                 isLoading = false,
-                //                 isRefreshing = false,
-                //                 error = null
-                //             )
-                //         }
-                //     }
+                // ✅ REAL IMPLEMENTATION - Replace mock with actual repository call
+                communityRepository.getPostComments(currentPostId)
+                    .catch { exception ->
+                        Timber.e(exception, "❌ Error loading comments")
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                isRefreshing = false,
+                                error = "Failed to load comments: ${exception.message}"
+                            )
+                        }
+                    }
+                    .collect { comments ->
+                        Timber.d("✅ Loaded ${comments.size} comments")
 
-                // Temporary mock data untuk development
-                val mockComments = generateMockComments()
-                val supportTypeBreakdown = mockComments.groupBy { it.supportType }
-                    .mapValues { it.value.size }
+                        // Calculate support type breakdown
+                        val supportTypeBreakdown = comments.groupBy { it.supportType }
+                            .mapValues { it.value.size }
 
-                _uiState.update {
-                    it.copy(
-                        comments = mockComments,
-                        totalComments = mockComments.size,
-                        supportTypeBreakdown = supportTypeBreakdown,
-                        isLoading = false,
-                        isRefreshing = false,
-                        error = null
-                    )
-                }
+                        // Get current user to check liked status
+                        val currentUser = authRepository.getCurrentUser()
+                        val commentsWithLikeStatus = if (currentUser != null) {
+                            checkCommentsLikeStatus(comments, currentUser.id)
+                        } else {
+                            comments
+                        }
+
+                        _uiState.update {
+                            it.copy(
+                                comments = commentsWithLikeStatus,
+                                totalComments = comments.size,
+                                supportTypeBreakdown = supportTypeBreakdown,
+                                isLoading = false,
+                                isRefreshing = false,
+                                error = null
+                            )
+                        }
+                    }
 
             } catch (e: Exception) {
                 Timber.e(e, "💥 Unexpected error loading comments")
@@ -157,29 +151,24 @@ class SupportViewModel @Inject constructor(
 
                 Timber.d("💬 Posting comment: $commentRequest")
 
-                // TODO: Implement in repository
-                // val result = communityRepository.postComment(commentRequest)
-                // result.fold(
-                //     onSuccess = { commentId ->
-                //         Timber.d("✅ Comment posted successfully: $commentId")
-                //         clearCommentForm()
-                //         loadComments()
-                //     },
-                //     onFailure = { exception ->
-                //         Timber.e(exception, "❌ Failed to post comment")
-                //         _uiState.update {
-                //             it.copy(
-                //                 isPostingComment = false,
-                //                 error = "Failed to post comment: ${exception.message}"
-                //             )
-                //         }
-                //     }
-                // )
-
-                // Temporary success simulation
-                Timber.d("✅ Comment posted successfully (mock)")
-                clearCommentForm()
-                loadComments() // Reload to show new comment
+                // ✅ REAL IMPLEMENTATION - Replace mock with actual repository call
+                val result = communityRepository.postComment(commentRequest)
+                result.fold(
+                    onSuccess = { commentId ->
+                        Timber.d("✅ Comment posted successfully: $commentId")
+                        clearCommentForm()
+                        loadComments() // Reload to show new comment
+                    },
+                    onFailure = { exception ->
+                        Timber.e(exception, "❌ Failed to post comment")
+                        _uiState.update {
+                            it.copy(
+                                isPostingComment = false,
+                                error = "Failed to post comment: ${exception.message}"
+                            )
+                        }
+                    }
+                )
 
             } catch (e: Exception) {
                 Timber.e(e, "💥 Unexpected error posting comment")
@@ -190,6 +179,121 @@ class SupportViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    private fun likeComment(commentId: String) {
+        viewModelScope.launch {
+            try {
+                val currentUser = authRepository.getCurrentUser()
+                if (currentUser == null) {
+                    _uiState.update { it.copy(error = "Please login to like comments") }
+                    return@launch
+                }
+
+                Timber.d("👍 Toggling like for comment: $commentId")
+
+                // Optimistically update UI first
+                updateCommentLikeStatusOptimistically(commentId)
+
+                // ✅ REAL IMPLEMENTATION
+                val result = communityRepository.likeComment(commentId, currentUser.id)
+                result.fold(
+                    onSuccess = {
+                        Timber.d("✅ Comment like toggled successfully")
+                        // UI already updated optimistically
+                    },
+                    onFailure = { exception ->
+                        Timber.e(exception, "❌ Failed to toggle comment like")
+                        // Revert optimistic update
+                        updateCommentLikeStatusOptimistically(commentId)
+                        _uiState.update {
+                            it.copy(error = "Failed to update like: ${exception.message}")
+                        }
+                    }
+                )
+
+            } catch (e: Exception) {
+                Timber.e(e, "❌ Error liking comment")
+                _uiState.update {
+                    it.copy(error = "Failed to update like: ${e.message}")
+                }
+            }
+        }
+    }
+
+    private fun reportComment(commentId: String, reason: String) {
+        viewModelScope.launch {
+            try {
+                val currentUser = authRepository.getCurrentUser()
+                if (currentUser == null) {
+                    _uiState.update { it.copy(error = "Please login to report comments") }
+                    return@launch
+                }
+
+                Timber.d("🚨 Reporting comment: $commentId, reason: $reason")
+
+                // ✅ REAL IMPLEMENTATION
+                val result = communityRepository.reportComment(commentId, currentUser.id, reason)
+                result.fold(
+                    onSuccess = {
+                        Timber.d("✅ Comment reported successfully")
+                        _uiState.update {
+                            it.copy(error = null)
+                        }
+                    },
+                    onFailure = { exception ->
+                        Timber.e(exception, "❌ Failed to report comment")
+                        _uiState.update {
+                            it.copy(error = "Failed to report comment: ${exception.message}")
+                        }
+                    }
+                )
+
+            } catch (e: Exception) {
+                Timber.e(e, "❌ Error reporting comment")
+                _uiState.update {
+                    it.copy(error = "Failed to report comment: ${e.message}")
+                }
+            }
+        }
+    }
+
+    // ============================================================================
+    // HELPER METHODS
+    // ============================================================================
+
+    private suspend fun checkCommentsLikeStatus(
+        comments: List<SupportComment>,
+        userId: String
+    ): List<SupportComment> {
+        // For now, return comments as-is
+        // In production, you'd check which comments the user has liked
+        return comments
+    }
+
+    private fun updateCommentLikeStatusOptimistically(commentId: String) {
+        _uiState.update { state ->
+            val updatedComments = state.comments.map { comment ->
+                if (comment.id == commentId) {
+                    if (comment.isLikedByCurrentUser) {
+                        // Unlike
+                        comment.copy(
+                            isLikedByCurrentUser = false,
+                            likeCount = maxOf(0, comment.likeCount - 1)
+                        )
+                    } else {
+                        // Like
+                        comment.copy(
+                            isLikedByCurrentUser = true,
+                            likeCount = comment.likeCount + 1
+                        )
+                    }
+                } else {
+                    comment
+                }
+            }
+            state.copy(comments = updatedComments)
         }
     }
 
@@ -229,28 +333,6 @@ class SupportViewModel @Inject constructor(
         _uiState.update { it.copy(showCommentDialog = false) }
     }
 
-    private fun likeComment(commentId: String) {
-        viewModelScope.launch {
-            try {
-                Timber.d("👍 Liking comment: $commentId")
-                // TODO: Implement like functionality
-            } catch (e: Exception) {
-                Timber.e(e, "❌ Error liking comment")
-            }
-        }
-    }
-
-    private fun reportComment(commentId: String, reason: String) {
-        viewModelScope.launch {
-            try {
-                Timber.d("🚨 Reporting comment: $commentId, reason: $reason")
-                // TODO: Implement report functionality
-            } catch (e: Exception) {
-                Timber.e(e, "❌ Error reporting comment")
-            }
-        }
-    }
-
     private fun expandComment(commentId: String) {
         _uiState.update {
             it.copy(expandedCommentId = if (it.expandedCommentId == commentId) null else commentId)
@@ -264,60 +346,11 @@ class SupportViewModel @Inject constructor(
     private fun replyToComment(parentCommentId: String) {
         // TODO: Implement reply functionality
         Timber.d("💭 Replying to comment: $parentCommentId")
+        // For now, just show the comment dialog
+        showCommentDialog()
     }
 
     private fun clearError() {
         _uiState.update { it.copy(error = null) }
-    }
-
-    // Mock data untuk development
-    private fun generateMockComments(): List<SupportComment> {
-        return listOf(
-            SupportComment(
-                id = "comment1",
-                postId = currentPostId,
-                userId = "user1",
-                username = "Adventurer_123",
-                anonymousUsername = "Kazuma_1234",
-                content = "Hey fellow adventurer! I totally feel you on this one. Sometimes life hits harder than a Dullahan's curse, but remember - even Aqua has her useful moments! You've got this! 💪",
-                supportType = SupportType.STRENGTH,
-                supportLevel = 4,
-                isAnonymous = true,
-                createdAt = kotlinx.datetime.Clock.System.now()
-                    .minus(1, kotlinx.datetime.DateTimeUnit.HOUR * 2),
-                likeCount = 5,
-                isLikedByCurrentUser = false
-            ),
-            SupportComment(
-                id = "comment2",
-                postId = currentPostId,
-                userId = "user2",
-                username = "Helper_456",
-                anonymousUsername = "Megumin_5678",
-                content = "Sending you the biggest virtual hug! 🤗 Your chaos sounds exactly like mine last week. The good news? Tomorrow is a fresh quest with new possibilities!",
-                supportType = SupportType.HUG,
-                supportLevel = 5,
-                isAnonymous = true,
-                createdAt = kotlinx.datetime.Clock.System.now()
-                    .minus(1, kotlinx.datetime.DateTimeUnit.HOUR * 1),
-                likeCount = 8,
-                isLikedByCurrentUser = true
-            ),
-            SupportComment(
-                id = "comment3",
-                postId = currentPostId,
-                userId = "user3",
-                username = "Supporter_789",
-                anonymousUsername = "Darkness_9012",
-                content = "You're not alone in this adventure! ✨ Even the strongest party members have tough days. Keep shining, brave soul!",
-                supportType = SupportType.HOPE,
-                supportLevel = 3,
-                isAnonymous = true,
-                createdAt = kotlinx.datetime.Clock.System.now()
-                    .minus(1, kotlinx.datetime.DateTimeUnit.MINUTE * 30),
-                likeCount = 3,
-                isLikedByCurrentUser = false
-            )
-        )
     }
 }
