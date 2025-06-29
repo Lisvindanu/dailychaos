@@ -2,6 +2,7 @@ package com.dailychaos.project.presentation.ui.screen.chaos.create
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -253,7 +254,8 @@ fun CreateChaosScreen(
                         viewModel.navigateBack()
                     },
                     modifier = Modifier.weight(1f),
-                    enabled = !uiState.isSaving
+                    enabled = !uiState.isSaving,
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Cancel")
                 }
@@ -263,7 +265,8 @@ fun CreateChaosScreen(
                         viewModel.onEvent(CreateChaosEvent.SaveChaosEntry)
                     },
                     modifier = Modifier.weight(1f),
-                    enabled = uiState.isSavable
+                    enabled = uiState.isSavable,
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     if (uiState.isSaving) {
                         CircularProgressIndicator(

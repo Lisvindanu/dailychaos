@@ -5,13 +5,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.dailychaos.project.presentation.theme.DailyChaosTheme
@@ -99,7 +99,8 @@ fun OnboardingScreen(
                                 onClick = {
                                     viewModel.completeOnboarding()
                                     onOnboardingComplete()
-                                }
+                                },
+                                shape = RoundedCornerShape(12.dp)
                             ) {
                                 Text("Skip")
                             }
@@ -114,9 +115,10 @@ fun OnboardingScreen(
                                     viewModel.completeOnboarding()
                                     onOnboardingComplete()
                                 },
-                                modifier = Modifier.fillMaxWidth(0.6f)
+                                modifier = Modifier.fillMaxWidth(0.6f),
+                                shape = RoundedCornerShape(12.dp)
                             ) {
-                                Text("Get Started! 🌪️")
+                                Text("Get Started!")
                             }
                         } else {
                             Button(
@@ -125,7 +127,8 @@ fun OnboardingScreen(
                                         pagerState.animateScrollToPage(currentPage + 1)
                                     }
                                 },
-                                modifier = Modifier.fillMaxWidth(0.6f)
+                                modifier = Modifier.fillMaxWidth(0.6f),
+                                shape = RoundedCornerShape(12.dp)
                             ) {
                                 Text("Next")
                             }
@@ -136,10 +139,3 @@ fun OnboardingScreen(
         }
     }
 }
-
-// Extension function untuk background yang tidak ada di Compose
-//@Composable
-//private fun Modifier.background(color: androidx.compose.ui.graphics.Color): Modifier {
-//    return this.then(
-//        Modifier.background(color)
-//    )

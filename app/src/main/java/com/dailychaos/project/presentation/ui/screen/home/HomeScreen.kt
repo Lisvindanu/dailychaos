@@ -250,6 +250,7 @@ private fun QuickStatItem(
     }
 }
 
+
 @Composable
 private fun RecentChaosSection(
     recentEntries: List<com.dailychaos.project.domain.model.ChaosEntry>,
@@ -272,7 +273,10 @@ private fun RecentChaosSection(
                 fontWeight = FontWeight.SemiBold
             )
             if (recentEntries.isNotEmpty() && !isLoading) {
-                TextButton(onClick = onViewAll) {
+                TextButton(
+                    onClick = onViewAll,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                ) {
                     Text("View All")
                 }
             }
@@ -305,13 +309,39 @@ private fun RecentChaosSection(
                 }
             }
             else -> {
-                EmptyState(
-                    illustration = "📝",
-                    title = "No chaos yet",
-                    subtitle = "Start recording your daily adventures!",
-                    actionText = "Create First Entry",
-                    onActionClick = onCreateFirst
-                )
+                // Custom EmptyState dengan rounded action button
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "📝",
+                        fontSize = 48.sp
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "No chaos yet",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Start recording your daily adventures!",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = onCreateFirst,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Create First Entry")
+                    }
+                }
             }
         }
     }
