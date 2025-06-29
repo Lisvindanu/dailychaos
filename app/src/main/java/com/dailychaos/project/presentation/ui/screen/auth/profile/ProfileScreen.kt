@@ -299,6 +299,7 @@ private fun ProfileContent(
         // Logout Button (Tidak ada perubahan)
         OutlinedButton(
             onClick = onLogout,
+            shape = RoundedCornerShape(12.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp),

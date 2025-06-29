@@ -304,9 +304,10 @@ private fun UsernameLoginForm(
         Button(
             onClick = onLogin,
             modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
             enabled = !uiState.isLoading && uiState.username.isNotBlank()
         ) {
-            Text("Join the Party! 🎉")
+            Text("Join the Party!")
         }
     }
 }
@@ -377,6 +378,7 @@ private fun EmailLoginForm(
         Button(
             onClick = onLogin,
             modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
             enabled = !uiState.isLoading && uiState.email.isNotBlank() && uiState.password.isNotBlank()
         ) {
             Text("Login with Email")
@@ -427,9 +429,10 @@ private fun AnonymousLoginForm(
         Button(
             onClick = onLogin,
             modifier = Modifier.fillMaxWidth(),
-            enabled = !isLoading
+            enabled = !isLoading,
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text("Start Anonymous Adventure! 🚀")
+            Text("Start Anonymous Adventure!")
         }
     }
 }

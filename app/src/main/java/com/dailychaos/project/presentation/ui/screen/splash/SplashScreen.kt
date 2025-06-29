@@ -319,7 +319,7 @@ fun SplashScreen(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF8B4513)
                         ),
-                        shape = RoundedCornerShape(24.dp)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
                             text = if (isUserLoggedIn) "Continue Quest" else "Start Adventure",
